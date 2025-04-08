@@ -9,6 +9,8 @@ import Clients from "./pages/Clients";
 import Devices from "./pages/Devices";
 import Services from "./pages/Services";
 import Inventory from "./pages/Inventory";
+import Reports from "./pages/Reports";
+import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import Layout from "./components/Layout";
@@ -38,6 +40,8 @@ const App = () => (
               <Route path="devices" element={<Devices />} />
               <Route path="services" element={<Services />} />
               <Route path="inventory" element={<Inventory />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="settings" element={<Settings />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
