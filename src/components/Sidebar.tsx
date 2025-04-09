@@ -9,8 +9,7 @@ import {
   Package, 
   Settings, 
   BarChart3, 
-  Menu,
-  X
+  Menu
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,7 +18,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const Sidebar = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   
@@ -33,14 +32,11 @@ const Sidebar = () => {
     { icon: Settings, label: "Configurações", path: "/settings" },
   ];
 
-  // Safely access user properties
-  const userInitials = user?.email 
-    ? user.email.charAt(0).toUpperCase()
-    : "U";
-  
-  const displayName = user?.email 
-    ? user.email.split('@')[0] 
-    : "Usuário";
+  // Safely access user properties with fallbacks
+  const userEmail = user?.email || '';
+  const userInitials = userEmail ? userEmail.charAt(0).toUpperCase() : "U";
+  const displayName = userEmail ? userEmail.split('@')[0] : "Usuário";
+  const userRole = profile?.role || "Usuário";
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -54,7 +50,7 @@ const Sidebar = () => {
         </div>
         <div className="mt-2 text-center">
           <p className="font-medium">{displayName}</p>
-          <p className="text-sm text-sidebar-foreground/70">{user?.role || "Usuário"}</p>
+          <p className="text-sm text-sidebar-foreground/70">{userRole}</p>
         </div>
       </div>
 

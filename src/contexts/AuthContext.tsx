@@ -76,7 +76,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             
             setAuthState(prev => ({ 
               ...prev, 
-              profile: data, 
+              profile: data || null, 
               isLoading: false 
             }));
           } catch (error) {
@@ -109,11 +109,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             .eq('id', session.user.id)
             .single();
           
-          if (error) throw error;
+          if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "no rows returned" error
           
           setAuthState(prev => ({ 
             ...prev, 
-            profile: data, 
+            profile: data || null, 
             isLoading: false 
           }));
         } catch (error) {
