@@ -35,7 +35,7 @@ const Sidebar = () => {
   // Safely access user properties with fallbacks
   const userEmail = user?.email || '';
   const userInitials = userEmail ? userEmail.charAt(0).toUpperCase() : "U";
-  const displayName = userEmail ? userEmail.split('@')[0] : "Usuário";
+  const displayName = profile?.name || (userEmail ? userEmail.split('@')[0] : "Usuário");
   const userRole = profile?.role || "Usuário";
 
   const SidebarContent = () => (

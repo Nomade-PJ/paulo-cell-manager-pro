@@ -8,6 +8,7 @@ import { Navigate } from "react-router-dom";
 const Layout = () => {
   const { isAuthenticated, isLoading } = useAuth();
 
+  // Show loading spinner while checking authentication
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -16,10 +17,12 @@ const Layout = () => {
     );
   }
 
+  // Redirect to login if not authenticated
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
+  // Show the authenticated layout
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
       <Sidebar />

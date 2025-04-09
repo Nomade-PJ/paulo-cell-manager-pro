@@ -58,72 +58,95 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   });
 
   useEffect(() => {
-    // Set up authentication state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setAuthState(prev => ({ ...prev, session, user: session?.user || null, isAuthenticated: !!session }));
+    // Get initial session
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
         
+        setAuthState(prev => ({ 
+          ...prev, 
+          session, 
+          user: session?.user || null, 
+          isAuthenticated: !!session,
+        }));
+
         if (session?.user) {
           try {
-            // Explicitly type the table access
             const { data, error } = await supabase
               .from('profiles')
               .select('*')
               .eq('id', session.user.id)
               .single();
-
-            if (error) throw error;
+            
+            if (error && error.code !== 'PGRST116') {
+              console.error("Error fetching user profile:", error);
+            }
             
             setAuthState(prev => ({ 
               ...prev, 
-              profile: data || null, 
+              profile: data || { id: session.user.id, email: session.user.email }, 
               isLoading: false 
             }));
           } catch (error) {
             console.error("Error fetching user profile:", error);
-            setAuthState(prev => ({ ...prev, isLoading: false }));
+            setAuthState(prev => ({ 
+              ...prev, 
+              profile: { id: session.user.id, email: session.user.email }, 
+              isLoading: false 
+            }));
           }
+        } else {
+          setAuthState(prev => ({ ...prev, isLoading: false }));
+        }
+      } catch (error) {
+        console.error("Error initializing auth:", error);
+        setAuthState(prev => ({ ...prev, isLoading: false }));
+      }
+    };
+
+    // Set up authentication state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setAuthState(prev => ({ 
+          ...prev, 
+          session, 
+          user: session?.user || null, 
+          isAuthenticated: !!session 
+        }));
+        
+        if (session?.user) {
+          // Use setTimeout to prevent deadlocks
+          setTimeout(async () => {
+            try {
+              const { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .single();
+              
+              if (error && error.code !== 'PGRST116') {
+                console.error("Error fetching user profile:", error);
+              }
+              
+              setAuthState(prev => ({ 
+                ...prev, 
+                profile: data || { id: session.user.id, email: session.user.email }, 
+                isLoading: false 
+              }));
+            } catch (error) {
+              console.error("Error fetching user profile:", error);
+              setAuthState(prev => ({ 
+                ...prev, 
+                profile: { id: session.user.id, email: session.user.email }, 
+                isLoading: false 
+              }));
+            }
+          }, 0);
         } else {
           setAuthState(prev => ({ ...prev, profile: null, isLoading: false }));
         }
       }
     );
-
-    // Get initial session
-    const initializeAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      setAuthState(prev => ({ 
-        ...prev, 
-        session, 
-        user: session?.user || null, 
-        isAuthenticated: !!session,
-      }));
-
-      if (session?.user) {
-        try {
-          // Explicitly type the table access
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-          
-          if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "no rows returned" error
-          
-          setAuthState(prev => ({ 
-            ...prev, 
-            profile: data || null, 
-            isLoading: false 
-          }));
-        } catch (error) {
-          console.error("Error fetching user profile:", error);
-          setAuthState(prev => ({ ...prev, isLoading: false }));
-        }
-      } else {
-        setAuthState(prev => ({ ...prev, isLoading: false }));
-      }
-    };
 
     initializeAuth();
 
