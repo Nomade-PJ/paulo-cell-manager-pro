@@ -25,6 +25,15 @@ const Sidebar = () => {
     { icon: Settings, label: "Configurações", path: "/settings" },
   ];
 
+  // Safely access user properties
+  const userInitials = user?.email 
+    ? user.email.charAt(0).toUpperCase()
+    : "U";
+  
+  const displayName = user?.email 
+    ? user.email.split('@')[0] 
+    : "Usuário";
+
   return (
     <div className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 bg-sidebar text-sidebar-foreground">
       <div className="flex flex-col h-full">
@@ -34,11 +43,11 @@ const Sidebar = () => {
 
         <div className="flex flex-col items-center py-4 px-2">
           <div className="w-16 h-16 rounded-full bg-sidebar-accent flex items-center justify-center text-xl font-semibold">
-            {user?.name.split(" ").map(n => n[0]).join("").toUpperCase()}
+            {userInitials}
           </div>
           <div className="mt-2 text-center">
-            <p className="font-medium">{user?.name}</p>
-            <p className="text-sm text-sidebar-foreground/70">{user?.role}</p>
+            <p className="font-medium">{displayName}</p>
+            <p className="text-sm text-sidebar-foreground/70">{user?.role || "Usuário"}</p>
           </div>
         </div>
 
