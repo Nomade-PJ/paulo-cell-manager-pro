@@ -11,6 +11,17 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { 
+  AlertDialog,
+  AlertDialogContent, 
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction
+} from "@/components/ui/alert-dialog";
+import { Lock } from "lucide-react";
 
 // Schema para validação do formulário de login
 const loginSchema = z.object({
@@ -28,14 +39,26 @@ const signupSchema = z.object({
   path: ["confirmPassword"]
 });
 
+// Schema para validação da senha de admin
+const adminPasswordSchema = z.object({
+  adminPassword: z.string()
+    .refine((val) => val === "paulocell@admin1", {
+      message: "Senha administrativa incorreta"
+    })
+});
+
 type LoginForm = z.infer<typeof loginSchema>;
 type SignupForm = z.infer<typeof signupSchema>;
+type AdminPasswordForm = z.infer<typeof adminPasswordSchema>;
 
 const Login = () => {
   const { login, signup } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
+  const [adminDialogOpen, setAdminDialogOpen] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminPasswordError, setAdminPasswordError] = useState("");
 
   const loginForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -83,6 +106,17 @@ const Login = () => {
     }
   };
 
+  const handleAdminPassword = () => {
+    if (adminPassword === "paulocell@admin1") {
+      setActiveTab("signup");
+      setAdminDialogOpen(false);
+      setAdminPassword("");
+      setAdminPasswordError("");
+    } else {
+      setAdminPasswordError("Senha administrativa incorreta");
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
       <div className="w-full max-w-md">
@@ -97,7 +131,7 @@ const Login = () => {
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid grid-cols-2 mb-4">
                 <TabsTrigger value="login">Login</TabsTrigger>
-                <TabsTrigger value="signup">Cadastrar</TabsTrigger>
+                <TabsTrigger value="signup" disabled>Cadastrar</TabsTrigger>
               </TabsList>
               <TabsContent value="login" className="space-y-4">
                 <Form {...loginForm}>
@@ -143,6 +177,15 @@ const Login = () => {
                     </Button>
                   </form>
                 </Form>
+                <div className="text-center">
+                  <Button 
+                    variant="link" 
+                    className="mt-2 text-sm text-blue-600 hover:underline"
+                    onClick={() => setAdminDialogOpen(true)}
+                  >
+                    Cadastrar
+                  </Button>
+                </div>
               </TabsContent>
               <TabsContent value="signup" className="space-y-4">
                 <Form {...signupForm}>
@@ -211,6 +254,45 @@ const Login = () => {
           </CardFooter>
         </Card>
       </div>
+
+      {/* Admin Password Dialog */}
+      <AlertDialog open={adminDialogOpen} onOpenChange={setAdminDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5" /> Área Administrativa
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Insira a senha administrativa para acessar o cadastro de usuários
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Input 
+              type="password"
+              placeholder="Senha administrativa"
+              value={adminPassword}
+              onChange={(e) => {
+                setAdminPassword(e.target.value);
+                setAdminPasswordError("");
+              }}
+            />
+            {adminPasswordError && (
+              <p className="text-sm text-red-500 mt-2">{adminPasswordError}</p>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setAdminPassword("");
+              setAdminPasswordError("");
+            }}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleAdminPassword}>
+              Continuar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
