@@ -13,11 +13,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, FileEdit, Smartphone, HardDrive } from "lucide-react";
 import { Device } from "@/types";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const Devices = () => {
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const fetchDevices = async () => {
@@ -123,11 +125,52 @@ const Devices = () => {
     );
   };
 
+  // Cards para visualização mobile
+  const MobileDeviceCard = ({ device }: { device: Device }) => (
+    <div className="bg-white p-4 rounded-lg shadow mb-4 border border-gray-200">
+      <div className="flex justify-between items-center mb-2">
+        <div>
+          <h3 className="font-medium">{device.brand} {device.model}</h3>
+          <p className="text-xs text-gray-500">{device.serial_number || "—"}</p>
+        </div>
+        <div>{renderConditionBadge(device.condition)}</div>
+      </div>
+      
+      <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+        <div>
+          <p className="text-xs text-gray-500">IMEI</p>
+          <p className="truncate">{device.imei || "—"}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-500">Acessórios</p>
+          <p className="truncate">{device.accessories?.length 
+            ? device.accessories.join(", ")
+            : "—"}</p>
+        </div>
+      </div>
+      
+      <div className="flex justify-end space-x-2">
+        <Button variant="ghost" size="sm">
+          <Smartphone className="h-4 w-4 mr-1" />
+          <span className="text-xs">Ver</span>
+        </Button>
+        <Button variant="ghost" size="sm">
+          <FileEdit className="h-4 w-4 mr-1" />
+          <span className="text-xs">Editar</span>
+        </Button>
+        <Button variant="ghost" size="sm">
+          <HardDrive className="h-4 w-4 mr-1 text-blue-500" />
+          <span className="text-xs">Dados</span>
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Dispositivos</h1>
-        <Button>
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 className="text-xl sm:text-2xl font-bold">Dispositivos</h1>
+        <Button className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" />
           Novo Dispositivo
         </Button>
@@ -145,64 +188,82 @@ const Devices = () => {
         </div>
       </div>
       
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Marca</TableHead>
-              <TableHead>Modelo</TableHead>
-              <TableHead>Número de Série</TableHead>
-              <TableHead>IMEI</TableHead>
-              <TableHead>Condição</TableHead>
-              <TableHead>Acessórios</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
+      {isMobile ? (
+        <div>
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent"></div>
+            </div>
+          ) : filteredDevices.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground">
+              Nenhum dispositivo encontrado.
+            </div>
+          ) : (
+            filteredDevices.map((device) => (
+              <MobileDeviceCard key={device.id} device={device} />
+            ))
+          )}
+        </div>
+      ) : (
+        <div className="rounded-md border bg-white">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-10">
-                  <div className="flex justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent"></div>
-                  </div>
-                </TableCell>
+                <TableHead>Marca</TableHead>
+                <TableHead>Modelo</TableHead>
+                <TableHead className="hidden md:table-cell">Número de Série</TableHead>
+                <TableHead className="hidden md:table-cell">IMEI</TableHead>
+                <TableHead>Condição</TableHead>
+                <TableHead className="hidden lg:table-cell">Acessórios</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
-            ) : filteredDevices.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
-                  Nenhum dispositivo encontrado.
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredDevices.map((device) => (
-                <TableRow key={device.id}>
-                  <TableCell>{device.brand}</TableCell>
-                  <TableCell className="font-medium">{device.model}</TableCell>
-                  <TableCell>{device.serial_number || "—"}</TableCell>
-                  <TableCell>{device.imei || "—"}</TableCell>
-                  <TableCell>{renderConditionBadge(device.condition)}</TableCell>
-                  <TableCell>
-                    {device.accessories?.length 
-                      ? device.accessories.join(", ")
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button variant="ghost" size="icon">
-                      <Smartphone className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon">
-                      <FileEdit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon">
-                      <HardDrive className="h-4 w-4 text-blue-500" />
-                    </Button>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-10">
+                    <div className="flex justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent"></div>
+                    </div>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              ) : filteredDevices.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                    Nenhum dispositivo encontrado.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredDevices.map((device) => (
+                  <TableRow key={device.id}>
+                    <TableCell>{device.brand}</TableCell>
+                    <TableCell className="font-medium">{device.model}</TableCell>
+                    <TableCell className="hidden md:table-cell">{device.serial_number || "—"}</TableCell>
+                    <TableCell className="hidden md:table-cell">{device.imei || "—"}</TableCell>
+                    <TableCell>{renderConditionBadge(device.condition)}</TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {device.accessories?.length 
+                        ? device.accessories.join(", ")
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-right space-x-2">
+                      <Button variant="ghost" size="icon">
+                        <Smartphone className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon">
+                        <FileEdit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon">
+                        <HardDrive className="h-4 w-4 text-blue-500" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 };
