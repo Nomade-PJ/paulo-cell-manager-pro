@@ -22,14 +22,14 @@ const Layout = () => {
     return <Navigate to="/login" replace />;
   }
 
-  // Show the authenticated layout
+  // Show the authenticated layout with improved responsive classes
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden w-full">
+      <div className="flex-1 flex flex-col overflow-hidden w-full lg:ml-64">
         <Header />
-        <main className="flex-1 overflow-auto">
-          <div className="container py-4 px-2 sm:px-4 md:py-6 lg:px-6 mx-auto">
+        <main className="flex-1 overflow-auto p-0">
+          <div className="container mx-auto py-4 px-4 sm:px-6 md:py-6 lg:px-8 max-w-full">
             <Outlet />
           </div>
         </main>

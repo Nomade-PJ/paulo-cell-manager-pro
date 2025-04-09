@@ -11,8 +11,8 @@ const Header = () => {
   
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-      <div className="flex h-16 items-center justify-between px-4 sm:px-6">
-        {/* Empty div to balance the layout when the menu button is shown in the sidebar */}
+      <div className="flex h-14 sm:h-16 items-center justify-between px-3 sm:px-4 md:px-6">
+        {/* Empty div to balance the layout on mobile */}
         <div className="w-10 lg:hidden"></div>
         
         <div className="flex flex-1 items-center justify-center px-2 lg:ml-6 lg:justify-start">
@@ -31,13 +31,13 @@ const Header = () => {
           )}
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="h-5 w-5" />
             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
           </Button>
           
-          <Button variant="outline" size="sm" onClick={logout}>
+          <Button variant="outline" size="sm" onClick={logout} className="text-xs sm:text-sm">
             Sair
           </Button>
         </div>

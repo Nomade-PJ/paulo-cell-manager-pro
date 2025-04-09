@@ -9,7 +9,8 @@ import {
   Package, 
   Settings, 
   BarChart3, 
-  Menu
+  Menu,
+  FileText
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,6 +29,7 @@ const Sidebar = () => {
     { icon: Smartphone, label: "Dispositivos", path: "/devices" },
     { icon: Wrench, label: "Serviços", path: "/services" },
     { icon: Package, label: "Estoque", path: "/inventory" },
+    { icon: FileText, label: "Documentos", path: "/documents" }, // New menu item
     { icon: BarChart3, label: "Relatórios", path: "/reports" },
     { icon: Settings, label: "Configurações", path: "/settings" },
   ];
