@@ -1,6 +1,6 @@
 
 import * as React from "react";
-import InputMask, { ReactInputMask } from "react-input-mask";
+import InputMask from "react-input-mask";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 
