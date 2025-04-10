@@ -15,108 +15,83 @@ import { Customer } from "@/types";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/components/ui/use-toast";
 import { formatCPF, formatCNPJ } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter 
+} from "@/components/ui/dialog";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const Clients = () => {
   const navigate = useNavigate();
   const [clients, setClients] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [clientToDelete, setClientToDelete] = useState<string | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     const fetchClients = async () => {
       try {
-        // Simulação de dados (em produção seria uma chamada para a API)
-        await new Promise(resolve => setTimeout(resolve, 800));
+        setLoading(true);
         
-        const mockClients: Customer[] = [
-          {
-            id: "c1",
-            name: "João Silva",
-            email: "joao.silva@email.com",
-            phone: "(11) 98765-4321",
-            address: "Rua das Flores, 123",
-            created_at: "2024-01-15T10:30:00Z",
-            updated_at: "2024-01-15T10:30:00Z"
-          },
-          {
-            id: "c2",
-            name: "Maria Oliveira",
-            email: "maria.oliveira@email.com",
-            phone: "(11) 91234-5678",
-            address: "Av. Paulista, 1000",
-            created_at: "2024-02-10T14:20:00Z",
-            updated_at: "2024-02-10T14:20:00Z"
-          },
-          {
-            id: "c3",
-            name: "Pedro Santos",
-            email: "pedro.santos@email.com",
-            phone: "(11) 99876-5432",
-            created_at: "2024-03-05T09:45:00Z",
-            updated_at: "2024-03-05T09:45:00Z"
-          },
-          {
-            id: "c4",
-            name: "Ana Pereira",
-            email: "ana.pereira@email.com",
-            phone: "(11) 95555-1234",
-            address: "Rua dos Pinheiros, 50",
-            created_at: "2024-03-20T16:10:00Z",
-            updated_at: "2024-03-20T16:10:00Z"
-          },
-          {
-            id: "c5",
-            name: "Carlos Ferreira",
-            email: "carlos.ferreira@email.com",
-            phone: "(11) 92222-3333",
-            created_at: "2024-04-01T11:00:00Z",
-            updated_at: "2024-04-01T11:00:00Z"
-          }
-        ];
-        
-        // Check if there's registered client data in localStorage
-        const storedClientData = localStorage.getItem("registrationClient");
-        if (storedClientData) {
-          const clientData = JSON.parse(storedClientData);
+        const { data, error } = await supabase
+          .from('customers')
+          .select('*')
+          .order('created_at', { ascending: false });
           
-          // Check if client already exists by ID
-          const existingClientIndex = mockClients.findIndex(client => client.id === clientData.id);
-          
-          const newClient: Customer = {
-            id: clientData.id,
-            name: clientData.name,
-            email: clientData.email || "",
-            phone: clientData.phone || "",
-            address: clientData.street && clientData.number ? 
-              `${clientData.street}, ${clientData.number}, ${clientData.neighborhood || ""}, ${clientData.city || ""}-${clientData.state || ""}` : "",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          };
-          
-          if (existingClientIndex >= 0) {
-            // Replace existing client
-            mockClients[existingClientIndex] = newClient;
-          } else {
-            // Add new client
-            mockClients.unshift(newClient);
-          }
+        if (error) {
+          throw error;
         }
         
-        setClients(mockClients);
+        // Transform data to match Customer type
+        const transformedData = data.map(item => ({
+          id: item.id,
+          name: item.name,
+          email: item.email || "",
+          phone: item.phone || "",
+          address: item.street && item.number ? 
+            `${item.street}, ${item.number}${item.neighborhood ? `, ${item.neighborhood}` : ""}${item.city && item.state ? `, ${item.city}-${item.state}` : ""}` : "",
+          document_type: item.document_type as 'cpf' | 'cnpj',
+          document: item.document,
+          created_at: item.created_at,
+          updated_at: item.updated_at
+        }));
+        
+        setClients(transformedData);
       } catch (error) {
         console.error("Erro ao carregar clientes:", error);
+        toast({
+          variant: "destructive",
+          title: "Erro ao carregar clientes",
+          description: "Não foi possível carregar a lista de clientes.",
+        });
       } finally {
         setLoading(false);
       }
     };
     
     fetchClients();
-  }, []);
+  }, [refreshTrigger]);
 
   const filteredClients = clients.filter(client => 
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.phone.includes(searchTerm)
+    client.phone.includes(searchTerm) ||
+    (client.document && client.document.includes(searchTerm))
   );
   
   const handleNewClient = () => {
@@ -124,26 +99,77 @@ const Clients = () => {
   };
   
   const handleEditClient = (clientId: string) => {
-    // In a real app, this would navigate to edit form with client ID
-    toast({
-      title: "Editar Cliente",
-      description: `Função para editar o cliente ${clientId} será implementada em breve.`,
-    });
+    navigate(`/user-registration?id=${clientId}`);
   };
   
   const handleDeleteClient = (clientId: string) => {
-    // In a real app, this would confirm deletion and then remove from database
-    toast({
-      title: "Excluir Cliente",
-      description: `Função para excluir o cliente ${clientId} será implementada em breve.`,
-      variant: "destructive",
-    });
+    setClientToDelete(clientId);
+    setDeleteDialogOpen(true);
+  };
+  
+  const confirmDeleteClient = async () => {
+    if (!clientToDelete) return;
+    
+    try {
+      // First delete related services and devices due to foreign key constraints
+      const { error: servicesError } = await supabase
+        .from('services')
+        .delete()
+        .eq('customer_id', clientToDelete);
+        
+      if (servicesError) throw servicesError;
+      
+      const { error: devicesError } = await supabase
+        .from('devices')
+        .delete()
+        .eq('customer_id', clientToDelete);
+        
+      if (devicesError) throw devicesError;
+      
+      const { error } = await supabase
+        .from('customers')
+        .delete()
+        .eq('id', clientToDelete);
+        
+      if (error) throw error;
+      
+      toast({
+        title: "Cliente excluído",
+        description: "O cliente foi excluído com sucesso.",
+      });
+      
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error) {
+      console.error("Erro ao excluir cliente:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao excluir cliente",
+        description: "Não foi possível excluir o cliente.",
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setClientToDelete(null);
+    }
   };
   
   const handleCallClient = (phone: string) => {
-    // In a real app, this might use tel: protocol or show more contact options
+    if (!phone) {
+      toast({
+        variant: "destructive",
+        title: "Telefone não disponível",
+        description: "Este cliente não possui número de telefone cadastrado.",
+      });
+      return;
+    }
+    
+    // Remove non-numeric characters
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    // For mobile devices, attempt to initiate a call
+    window.location.href = `tel:${cleanPhone}`;
+    
     toast({
-      title: "Ligar para Cliente",
+      title: "Chamada iniciada",
       description: `Chamando ${phone}`,
     });
   };
@@ -162,7 +188,7 @@ const Clients = () => {
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome, email ou telefone..."
+            placeholder="Buscar por nome, email, telefone ou documento..."
             className="pl-8"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -177,6 +203,7 @@ const Clients = () => {
               <TableHead>Nome</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Telefone</TableHead>
+              <TableHead>Documento</TableHead>
               <TableHead>Endereço</TableHead>
               <TableHead>Data de Cadastro</TableHead>
               <TableHead className="text-right">Ações</TableHead>
@@ -185,7 +212,7 @@ const Clients = () => {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-10">
+                <TableCell colSpan={7} className="text-center py-10">
                   <div className="flex justify-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent"></div>
                   </div>
@@ -193,7 +220,7 @@ const Clients = () => {
               </TableRow>
             ) : filteredClients.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                   Nenhum cliente encontrado.
                 </TableCell>
               </TableRow>
@@ -201,11 +228,20 @@ const Clients = () => {
               filteredClients.map((client) => (
                 <TableRow key={client.id}>
                   <TableCell className="font-medium">{client.name}</TableCell>
-                  <TableCell>{client.email}</TableCell>
-                  <TableCell>{client.phone}</TableCell>
+                  <TableCell>{client.email || "—"}</TableCell>
+                  <TableCell>{client.phone || "—"}</TableCell>
+                  <TableCell>
+                    {client.document_type === 'cpf' 
+                      ? formatCPF(client.document || "") 
+                      : client.document_type === 'cnpj' 
+                        ? formatCNPJ(client.document || "") 
+                        : client.document || "—"}
+                  </TableCell>
                   <TableCell>{client.address || "—"}</TableCell>
                   <TableCell>
-                    {new Date(client.created_at).toLocaleDateString('pt-BR')}
+                    {client.created_at 
+                      ? new Date(client.created_at).toLocaleDateString('pt-BR')
+                      : "—"}
                   </TableCell>
                   <TableCell className="text-right space-x-2">
                     <Button 
@@ -236,6 +272,27 @@ const Clients = () => {
           </TableBody>
         </Table>
       </div>
+
+      {/* Confirm Delete Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita e também excluirá todos os dispositivos e serviços associados a este cliente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteClient}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

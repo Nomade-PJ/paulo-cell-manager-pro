@@ -11,11 +11,31 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, FileEdit, Smartphone, HardDrive } from "lucide-react";
-import { Device } from "@/types";
+import { Plus, Search, FileEdit, Smartphone, HardDrive, Trash2 } from "lucide-react";
+import { Device, Customer } from "@/types";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from "@/components/ui/dialog";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const Devices = () => {
   const navigate = useNavigate();
@@ -23,133 +43,66 @@ const Devices = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const isMobile = useIsMobile();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deviceToDelete, setDeviceToDelete] = useState<string | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [viewDeviceDialog, setViewDeviceDialog] = useState(false);
+  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+  const [deviceDetailsDialog, setDeviceDetailsDialog] = useState(false);
 
   useEffect(() => {
     const fetchDevices = async () => {
       try {
-        // Simulação de dados (em produção seria uma chamada para a API)
-        await new Promise(resolve => setTimeout(resolve, 800));
+        setLoading(true);
         
-        const mockDevices: Device[] = [
-          {
-            id: "d1",
-            customer_id: "c1",
-            brand: "Apple",
-            model: "iPhone 12",
-            serial_number: "ABCD1234EFGH",
-            imei: "123456789012345",
-            condition: "Bom",
-            accessories: ["Carregador", "Capa"],
-            notes: "Arranhões na lateral direita",
-            created_at: "2024-03-10T14:30:00Z",
-            updated_at: "2024-03-10T14:30:00Z"
-          },
-          {
-            id: "d2",
-            customer_id: "c2",
-            brand: "Samsung",
-            model: "Galaxy S21",
-            serial_number: "SAMS21456789",
-            imei: "987654321098765",
-            condition: "Regular",
-            accessories: ["Carregador"],
-            notes: "Tela quebrada no canto",
-            created_at: "2024-03-15T10:20:00Z",
-            updated_at: "2024-03-15T10:20:00Z"
-          },
-          {
-            id: "d3",
-            customer_id: "c3",
-            brand: "Xiaomi",
-            model: "Redmi Note 10",
-            serial_number: "XM10987654",
-            imei: "456789012345678",
-            condition: "Bom",
-            created_at: "2024-03-25T16:45:00Z",
-            updated_at: "2024-03-25T16:45:00Z"
-          },
-          {
-            id: "d4",
-            customer_id: "c4",
-            brand: "Motorola",
-            model: "Moto G60",
-            serial_number: "MTRL60123456",
-            imei: "789012345678901",
-            condition: "Ruim",
-            notes: "Não liga, danos por água",
-            created_at: "2024-04-02T09:15:00Z",
-            updated_at: "2024-04-02T09:15:00Z"
-          },
-          {
-            id: "d5",
-            customer_id: "c5",
-            brand: "Apple",
-            model: "iPhone 13 Pro",
-            serial_number: "APIP13PRO7890",
-            imei: "234567890123456",
-            condition: "Excelente",
-            accessories: ["Carregador", "Fones", "Capa original"],
-            created_at: "2024-04-05T11:30:00Z",
-            updated_at: "2024-04-05T11:30:00Z"
-          }
-        ];
-        
-        // Check if there's registered device data in localStorage
-        const storedDeviceData = localStorage.getItem("registrationDevice");
-        if (storedDeviceData) {
-          const deviceData = JSON.parse(storedDeviceData);
+        const { data, error } = await supabase
+          .from('devices')
+          .select(`
+            *,
+            customers!inner (
+              id,
+              name
+            )
+          `)
+          .order('created_at', { ascending: false });
           
-          // Get brand and condition mappings
-          const brandMap: Record<string, string> = {
-            "apple": "Apple",
-            "samsung": "Samsung",
-            "xiaomi": "Xiaomi",
-            "motorola": "Motorola",
-            "lg": "LG",
-            "outros": "Outros"
-          };
-          
-          const conditionMap: Record<string, string> = {
-            "good": "Excelente", 
-            "minor_issues": "Regular", 
-            "critical_issues": "Ruim"
-          };
-          
-          const newDevice: Device = {
-            id: deviceData.id,
-            customer_id: deviceData.clientId,
-            brand: brandMap[deviceData.brand] || deviceData.brand,
-            model: deviceData.model,
-            serial_number: deviceData.serialNumber || "",
-            imei: deviceData.imei || "",
-            condition: conditionMap[deviceData.condition] || "Bom",
-            notes: deviceData.observations || "",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          };
-          
-          // Check if device already exists by ID
-          const existingDeviceIndex = mockDevices.findIndex(device => device.id === deviceData.id);
-          
-          if (existingDeviceIndex >= 0) {
-            // Replace existing device
-            mockDevices[existingDeviceIndex] = newDevice;
-          } else {
-            // Add new device
-            mockDevices.unshift(newDevice);
-          }
+        if (error) {
+          throw error;
         }
         
-        setDevices(mockDevices);
+        // Transform data to match Device type
+        const transformedData = data.map(item => ({
+          id: item.id,
+          customer_id: item.customer_id,
+          customer_name: item.customers.name,
+          brand: item.brand.charAt(0).toUpperCase() + item.brand.slice(1),
+          model: item.model,
+          serial_number: item.serial_number || undefined,
+          imei: item.imei || undefined,
+          color: item.color || undefined,
+          condition: item.condition,
+          password_type: item.password_type as 'none' | 'pin' | 'pattern' | 'password',
+          password: item.password || undefined,
+          notes: item.observations || undefined,
+          created_at: item.created_at,
+          updated_at: item.updated_at
+        }));
+        
+        setDevices(transformedData);
       } catch (error) {
         console.error("Erro ao carregar dispositivos:", error);
+        toast({
+          variant: "destructive",
+          title: "Erro ao carregar dispositivos",
+          description: "Não foi possível carregar a lista de dispositivos.",
+        });
       } finally {
         setLoading(false);
       }
     };
     
     fetchDevices();
-  }, []);
+  }, [refreshTrigger]);
 
   const filteredDevices = devices.filter(device => 
     device.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -161,62 +114,122 @@ const Devices = () => {
   // Função para renderizar o badge de condição
   const renderConditionBadge = (condition: string) => {
     const conditionMap: Record<string, string> = {
-      'Excelente': 'bg-green-500',
-      'Bom': 'bg-blue-500',
-      'Regular': 'bg-yellow-500',
-      'Ruim': 'bg-red-500'
+      'good': 'bg-green-500',
+      'minor_issues': 'bg-yellow-500',
+      'critical_issues': 'bg-red-500'
+    };
+    
+    const conditionLabels: Record<string, string> = {
+      'good': 'Bom estado',
+      'minor_issues': 'Problemas leves',
+      'critical_issues': 'Problemas críticos'
     };
     
     return (
       <Badge className={conditionMap[condition] || 'bg-gray-500'}>
-        {condition}
+        {conditionLabels[condition] || condition}
       </Badge>
     );
   };
 
-  const handleNewDevice = () => {
-    // Get client id from localStorage if available
-    const storedClientData = localStorage.getItem("registrationClient");
-    if (storedClientData) {
-      const clientData = JSON.parse(storedClientData);
-      navigate(`/device-registration/${clientData.id}`);
-    } else {
+  const handleNewDevice = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id, name')
+        .order('name', { ascending: true });
+        
+      if (error) throw error;
+      
+      if (data.length === 0) {
+        toast({
+          title: "Cliente não encontrado",
+          description: "Por favor, cadastre um cliente primeiro.",
+          variant: "destructive",
+        });
+        navigate("/user-registration");
+        return;
+      }
+      
+      // If there are clients, navigate to the device registration
+      navigate(`/device-registration/${data[0].id}`);
+    } catch (error) {
+      console.error("Erro ao buscar clientes:", error);
       toast({
-        title: "Cliente não encontrado",
-        description: "Por favor, cadastre um cliente primeiro.",
         variant: "destructive",
+        title: "Erro ao buscar clientes",
+        description: "Por favor, cadastre um cliente primeiro.",
       });
       navigate("/user-registration");
     }
   };
   
   const handleEditDevice = (deviceId: string) => {
-    toast({
-      title: "Editar Dispositivo",
-      description: `Função para editar o dispositivo ${deviceId} será implementada em breve.`,
-    });
+    navigate(`/device-registration/${deviceId}`);
   };
   
-  const handleViewDevice = (deviceId: string) => {
-    toast({
-      title: "Ver Detalhes",
-      description: `Visualização detalhada do dispositivo ${deviceId} será implementada em breve.`,
-    });
+  const handleViewDevice = (device: Device) => {
+    setSelectedDevice(device);
+    setViewDeviceDialog(true);
   };
   
-  const handleViewDeviceData = (deviceId: string) => {
-    toast({
-      title: "Dados do Dispositivo",
-      description: `Dados técnicos do dispositivo ${deviceId} será implementada em breve.`,
-    });
+  const handleViewDeviceData = (device: Device) => {
+    setSelectedDevice(device);
+    setDeviceDetailsDialog(true);
+  };
+  
+  const handleDeleteDevice = (deviceId: string) => {
+    setDeviceToDelete(deviceId);
+    setDeleteDialogOpen(true);
+  };
+  
+  const confirmDeleteDevice = async () => {
+    if (!deviceToDelete) return;
+    
+    try {
+      // First delete related services due to foreign key constraints
+      const { error: servicesError } = await supabase
+        .from('services')
+        .delete()
+        .eq('device_id', deviceToDelete);
+        
+      if (servicesError) throw servicesError;
+      
+      const { error } = await supabase
+        .from('devices')
+        .delete()
+        .eq('id', deviceToDelete);
+        
+      if (error) throw error;
+      
+      toast({
+        title: "Dispositivo excluído",
+        description: "O dispositivo foi excluído com sucesso.",
+      });
+      
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error) {
+      console.error("Erro ao excluir dispositivo:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao excluir dispositivo",
+        description: "Não foi possível excluir o dispositivo.",
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setDeviceToDelete(null);
+    }
   };
 
-  // Cards para visualização mobile
+  // Mobile device card component
   const MobileDeviceCard = ({ device }: { device: Device }) => (
     <div className="bg-white p-4 rounded-lg shadow mb-4 border border-gray-200">
       <div className="flex justify-between items-center mb-2">
         <div>
           <h3 className="font-medium">{device.brand} {device.model}</h3>
+          <p className="text-xs text-gray-500">
+            {device.customer_name || "Cliente desconhecido"}
+          </p>
           <p className="text-xs text-gray-500">{device.serial_number || "—"}</p>
         </div>
         <div>{renderConditionBadge(device.condition)}</div>
@@ -228,10 +241,8 @@ const Devices = () => {
           <p className="truncate">{device.imei || "—"}</p>
         </div>
         <div>
-          <p className="text-xs text-gray-500">Acessórios</p>
-          <p className="truncate">{device.accessories?.length 
-            ? device.accessories.join(", ")
-            : "—"}</p>
+          <p className="text-xs text-gray-500">Cor</p>
+          <p className="truncate">{device.color || "—"}</p>
         </div>
       </div>
       
@@ -239,7 +250,7 @@ const Devices = () => {
         <Button 
           variant="ghost" 
           size="sm"
-          onClick={() => handleViewDevice(device.id)}
+          onClick={() => handleViewDevice(device)}
         >
           <Smartphone className="h-4 w-4 mr-1" />
           <span className="text-xs">Ver</span>
@@ -255,10 +266,18 @@ const Devices = () => {
         <Button 
           variant="ghost" 
           size="sm"
-          onClick={() => handleViewDeviceData(device.id)}
+          onClick={() => handleViewDeviceData(device)}
         >
           <HardDrive className="h-4 w-4 mr-1 text-blue-500" />
           <span className="text-xs">Dados</span>
+        </Button>
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={() => handleDeleteDevice(device.id)}
+        >
+          <Trash2 className="h-4 w-4 mr-1 text-red-500" />
+          <span className="text-xs">Excluir</span>
         </Button>
       </div>
     </div>
@@ -309,10 +328,10 @@ const Devices = () => {
               <TableRow>
                 <TableHead>Marca</TableHead>
                 <TableHead>Modelo</TableHead>
+                <TableHead>Cliente</TableHead>
                 <TableHead className="hidden md:table-cell">Número de Série</TableHead>
                 <TableHead className="hidden md:table-cell">IMEI</TableHead>
                 <TableHead>Condição</TableHead>
-                <TableHead className="hidden lg:table-cell">Acessórios</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -336,19 +355,15 @@ const Devices = () => {
                   <TableRow key={device.id}>
                     <TableCell>{device.brand}</TableCell>
                     <TableCell className="font-medium">{device.model}</TableCell>
+                    <TableCell>{device.customer_name}</TableCell>
                     <TableCell className="hidden md:table-cell">{device.serial_number || "—"}</TableCell>
                     <TableCell className="hidden md:table-cell">{device.imei || "—"}</TableCell>
                     <TableCell>{renderConditionBadge(device.condition)}</TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      {device.accessories?.length 
-                        ? device.accessories.join(", ")
-                        : "—"}
-                    </TableCell>
                     <TableCell className="text-right space-x-2">
                       <Button 
                         variant="ghost" 
                         size="icon"
-                        onClick={() => handleViewDevice(device.id)}
+                        onClick={() => handleViewDevice(device)}
                       >
                         <Smartphone className="h-4 w-4" />
                       </Button>
@@ -362,9 +377,16 @@ const Devices = () => {
                       <Button 
                         variant="ghost" 
                         size="icon"
-                        onClick={() => handleViewDeviceData(device.id)}
+                        onClick={() => handleViewDeviceData(device)}
                       >
                         <HardDrive className="h-4 w-4 text-blue-500" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => handleDeleteDevice(device.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -374,6 +396,145 @@ const Devices = () => {
           </Table>
         </div>
       )}
+
+      {/* View Device Dialog */}
+      <Dialog open={viewDeviceDialog} onOpenChange={setViewDeviceDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Detalhes do Dispositivo</DialogTitle>
+          </DialogHeader>
+          {selectedDevice && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Marca</p>
+                  <p className="font-medium">{selectedDevice.brand}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Modelo</p>
+                  <p className="font-medium">{selectedDevice.model}</p>
+                </div>
+              </div>
+              
+              <div>
+                <p className="text-sm text-gray-500">Cliente</p>
+                <p className="font-medium">{selectedDevice.customer_name}</p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Número de Série</p>
+                  <p>{selectedDevice.serial_number || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">IMEI</p>
+                  <p>{selectedDevice.imei || "—"}</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Cor</p>
+                  <p>{selectedDevice.color || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Condição</p>
+                  <div className="mt-1">{renderConditionBadge(selectedDevice.condition)}</div>
+                </div>
+              </div>
+              
+              {selectedDevice.notes && (
+                <div>
+                  <p className="text-sm text-gray-500">Observações</p>
+                  <p className="text-sm bg-gray-50 p-2 rounded mt-1">{selectedDevice.notes}</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setViewDeviceDialog(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Device Technical Details Dialog */}
+      <Dialog open={deviceDetailsDialog} onOpenChange={setDeviceDetailsDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Dados Técnicos do Dispositivo</DialogTitle>
+            <DialogDescription>
+              Informações técnicas e de acesso
+            </DialogDescription>
+          </DialogHeader>
+          {selectedDevice && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Tipo de bloqueio</p>
+                  <p className="font-medium">
+                    {selectedDevice.password_type === 'none' ? 'Sem bloqueio' : 
+                     selectedDevice.password_type === 'pin' ? 'PIN' :
+                     selectedDevice.password_type === 'pattern' ? 'Padrão' : 'Senha'}
+                  </p>
+                </div>
+                {selectedDevice.password_type !== 'none' && (
+                  <div>
+                    <p className="text-sm text-gray-500">Senha/Padrão</p>
+                    <p className="font-medium">{selectedDevice.password || "—"}</p>
+                  </div>
+                )}
+              </div>
+              
+              <div>
+                <p className="text-sm text-gray-500">Número de série</p>
+                <p className="font-mono bg-gray-50 p-1 rounded mt-1">{selectedDevice.serial_number || "—"}</p>
+              </div>
+              
+              {selectedDevice.imei && (
+                <div>
+                  <p className="text-sm text-gray-500">IMEI</p>
+                  <p className="font-mono bg-gray-50 p-1 rounded mt-1">{selectedDevice.imei}</p>
+                </div>
+              )}
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Data de cadastro</p>
+                  <p>{new Date(selectedDevice.created_at).toLocaleDateString('pt-BR')}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Última atualização</p>
+                  <p>{new Date(selectedDevice.updated_at).toLocaleDateString('pt-BR')}</p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setDeviceDetailsDialog(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Delete Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este dispositivo? Esta ação não pode ser desfeita e também excluirá todos os serviços associados a este dispositivo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteDevice}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

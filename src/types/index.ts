@@ -10,6 +10,7 @@ export interface Customer {
   document?: string;
   created_at: string;
   updated_at: string;
+  customer_name?: string; // Adicional para facilitar exibição
 }
 
 // Tipos para dispositivos
@@ -22,12 +23,14 @@ export interface Device {
   imei?: string;
   color?: string;
   condition: string;
-  accessories?: string[];
   password_type?: 'none' | 'pin' | 'pattern' | 'password';
   password?: string;
   notes?: string;
   created_at: string;
   updated_at: string;
+  device_type?: string; // Adicionado para suporte ao tipo de dispositivo
+  customer_name?: string; // Adicional para facilitar exibição
+  device_info?: string; // Adicional para facilitar exibição
 }
 
 // Tipos para serviços
@@ -47,9 +50,13 @@ export interface Service {
   parts_used?: Part[];
   estimated_completion_date?: string;
   completion_date?: string;
+  warranty_period?: string;
   warranty_until?: string;
   created_at: string;
   updated_at: string;
+  customer_name?: string; // Adicional para facilitar exibição
+  device_info?: string; // Adicional para facilitar exibição
+  observations?: string; // Adicional para observações
 }
 
 // Tipos para inventário/peças

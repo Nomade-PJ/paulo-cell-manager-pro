@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Form,
   FormControl,
@@ -48,9 +49,10 @@ const serviceFormSchema = z.object({
   serviceTypes: z.array(z.string()).min(1, { message: "Selecione pelo menos um serviço" }),
   otherService: z.string().optional(),
   technician: z.string().min(1, { message: "Selecione o técnico responsável" }),
+  price: z.string().min(1, { message: "Informe o preço" }),
   estimatedCompletion: z.date(),
   warranty: z.enum(["1", "3", "6", "12"]),
-  status: z.enum(["waiting", "in_progress", "completed", "delivered"]),
+  status: z.enum(["pending", "in_progress", "waiting_parts", "completed", "delivered"]),
   observations: z.string().optional(),
 });
 
@@ -63,11 +65,12 @@ const TECHNICIANS = [
 
 const ServiceRegistration = () => {
   const navigate = useNavigate();
-  const { clientId, deviceId } = useParams<{ clientId: string, deviceId: string }>();
+  const { clientId, deviceId, serviceId } = useParams<{ clientId: string, deviceId: string, serviceId?: string }>();
   const [isLoading, setIsLoading] = useState(false);
   const [clientData, setClientData] = useState<any>(null);
   const [deviceData, setDeviceData] = useState<any>(null);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [isEditing, setIsEditing] = useState(false);
   
   const form = useForm<ServiceFormValues>({
     resolver: zodResolver(serviceFormSchema),
@@ -77,40 +80,95 @@ const ServiceRegistration = () => {
       serviceTypes: [],
       otherService: "",
       technician: "",
+      price: "",
       estimatedCompletion: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1 week from now
       warranty: "3",
-      status: "waiting",
+      status: "pending",
       observations: "",
     },
   });
   
-  // Fetch client and device data from localStorage (in a real app, this would be from your API)
   useEffect(() => {
-    const storedClientData = localStorage.getItem("registrationClient");
-    const storedDeviceData = localStorage.getItem("registrationDevice");
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        if (serviceId) {
+          // We're editing an existing service
+          setIsEditing(true);
+          
+          const { data: serviceData, error: serviceError } = await supabase
+            .from('services')
+            .select(`
+              *,
+              customers:customer_id (*),
+              devices:device_id (*)
+            `)
+            .eq('id', serviceId)
+            .single();
+            
+          if (serviceError) throw serviceError;
+          
+          // Set client and device data
+          setClientData(serviceData.customers);
+          setDeviceData(serviceData.devices);
+          
+          // Parse the service types (stored as comma-separated string)
+          const serviceTypesList = serviceData.service_type.split(',').map((t: string) => t.trim());
+          setSelectedServices(serviceTypesList);
+          
+          // Fill form with service data
+          form.setValue("clientName", serviceData.customers.name);
+          form.setValue("deviceInfo", `${serviceData.devices.brand} ${serviceData.devices.model}`);
+          form.setValue("serviceTypes", serviceTypesList);
+          form.setValue("otherService", serviceData.other_service_description || "");
+          form.setValue("technician", serviceData.technician_id || "");
+          form.setValue("price", serviceData.price.toString());
+          form.setValue("estimatedCompletion", new Date(serviceData.estimated_completion_date));
+          form.setValue("warranty", serviceData.warranty_period || "3");
+          form.setValue("status", serviceData.status);
+          form.setValue("observations", serviceData.observations || "");
+        } else if (clientId && deviceId) {
+          // New service, fetch client and device data
+          const { data: clientData, error: clientError } = await supabase
+            .from('customers')
+            .select('*')
+            .eq('id', clientId)
+            .single();
+            
+          if (clientError) throw clientError;
+          
+          const { data: deviceData, error: deviceError } = await supabase
+            .from('devices')
+            .select('*')
+            .eq('id', deviceId)
+            .single();
+            
+          if (deviceError) throw deviceError;
+          
+          setClientData(clientData);
+          setDeviceData(deviceData);
+          
+          // Set form values
+          form.setValue("clientName", clientData.name);
+          form.setValue("deviceInfo", `${deviceData.brand.charAt(0).toUpperCase() + deviceData.brand.slice(1)} ${deviceData.model}`);
+        } else {
+          throw new Error("Dados incompletos");
+        }
+      } catch (error) {
+        console.error("Erro ao carregar dados:", error);
+        toast({
+          variant: "destructive",
+          title: "Erro ao carregar dados",
+          description: "Não foi possível carregar os dados necessários.",
+        });
+        navigate("/services");
+      } finally {
+        setIsLoading(false);
+      }
+    };
     
-    if (!storedClientData || !storedDeviceData) {
-      toast({
-        variant: "destructive",
-        title: "Erro",
-        description: "Dados do cliente ou dispositivo não encontrados. Por favor, reinicie o processo.",
-      });
-      navigate("/user-registration");
-      return;
-    }
-    
-    const client = JSON.parse(storedClientData);
-    const device = JSON.parse(storedDeviceData);
-    setClientData(client);
-    setDeviceData(device);
-    
-    // Set form values
-    form.setValue("clientName", client.name);
-    
-    // Create a device info summary string
-    const deviceInfo = `${device.brand.charAt(0).toUpperCase() + device.brand.slice(1)} ${device.model}`;
-    form.setValue("deviceInfo", deviceInfo);
-  }, [navigate, form]);
+    fetchData();
+  }, [clientId, deviceId, serviceId, form, navigate]);
   
   // Handle service type selection
   const handleServiceTypeChange = (checked: boolean, serviceType: string) => {
@@ -132,56 +190,99 @@ const ServiceRegistration = () => {
   const showOtherServiceField = selectedServices.includes("other");
   
   const onSubmit = async (data: ServiceFormValues) => {
+    if (!clientId || !deviceId) {
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: "Dados de cliente ou dispositivo não encontrados.",
+      });
+      return;
+    }
+    
     setIsLoading(true);
     
-    // In a real app, you would save this to your database
-    const serviceId = Math.random().toString(36).substring(2, 11);
-    
-    // For now, we'll use localStorage to simulate saving the data
-    localStorage.setItem("registrationService", JSON.stringify({
-      id: serviceId,
-      clientId,
-      deviceId,
-      ...data,
-      createdAt: new Date().toISOString(),
-    }));
-    
-    // Create a summary of all registration data
-    const completeRegistration = {
-      client: clientData,
-      device: deviceData,
-      service: {
-        id: serviceId,
-        ...data,
-        createdAt: new Date().toISOString(),
+    try {
+      // Calculate warranty date 
+      const estimatedCompletion = data.estimatedCompletion;
+      const warrantyMonths = parseInt(data.warranty);
+      const warrantyDate = new Date(estimatedCompletion);
+      warrantyDate.setMonth(estimatedCompletion.getMonth() + warrantyMonths);
+      
+      // Format price as a number
+      const price = parseFloat(data.price.replace(/[^\d,.-]/g, '').replace(',', '.'));
+      
+      if (isNaN(price)) {
+        throw new Error("Preço inválido");
       }
-    };
-    
-    // Store the complete registration
-    localStorage.setItem("completeRegistration", JSON.stringify(completeRegistration));
-    
-    toast({
-      title: "Serviço registrado com sucesso",
-      description: "Cadastro completo finalizado com sucesso.",
-    });
-    
-    // Navigate to the services page
-    setTimeout(() => {
+      
+      // Prepare service data for saving
+      const serviceData = {
+        customer_id: clientId,
+        device_id: deviceId,
+        service_type: data.serviceTypes.join(','),
+        other_service_description: data.otherService || null,
+        technician_id: data.technician,
+        price: price,
+        estimated_completion_date: data.estimatedCompletion.toISOString(),
+        warranty_period: data.warranty,
+        warranty_until: warrantyDate.toISOString(),
+        status: data.status,
+        observations: data.observations || null,
+        priority: data.serviceTypes.includes('board') ? 'high' : 
+                 data.serviceTypes.includes('battery') || data.serviceTypes.includes('connector') ? 'normal' : 'low',
+        updated_at: new Date().toISOString()
+      };
+      
+      if (isEditing && serviceId) {
+        // Update existing service
+        const { error } = await supabase
+          .from('services')
+          .update(serviceData)
+          .eq('id', serviceId);
+          
+        if (error) throw error;
+        
+        toast({
+          title: "Serviço atualizado com sucesso",
+          description: "Os dados do serviço foram atualizados.",
+        });
+      } else {
+        // Create new service
+        const { error } = await supabase
+          .from('services')
+          .insert({ ...serviceData, created_at: new Date().toISOString() });
+          
+        if (error) throw error;
+        
+        toast({
+          title: "Serviço registrado com sucesso",
+          description: "O serviço foi cadastrado com sucesso.",
+        });
+      }
+      
+      // Navigate back to services page
       navigate("/services");
-    }, 1000);
-    
-    setIsLoading(false);
+    } catch (error) {
+      console.error("Erro ao salvar serviço:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao salvar",
+        description: "Não foi possível salvar os dados do serviço.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   const goBack = () => {
-    navigate(`/device-registration/${clientId}`);
+    navigate(`/device-registration/${clientId}${deviceId ? `/${deviceId}` : ''}`);
   };
   
   return (
     <div className="space-y-6">
       <PageHeader 
-        title="Cadastro de Serviço" 
-        description="Preencha os detalhes do serviço a ser realizado."
+        title={isEditing ? "Editar Serviço" : "Cadastro de Serviço"} 
+        description={isEditing ? "Atualize os detalhes do serviço." : "Preencha os detalhes do serviço a ser realizado."}
       >
         <Wrench className="h-6 w-6" />
       </PageHeader>
@@ -289,6 +390,7 @@ const ServiceRegistration = () => {
                       <Select 
                         onValueChange={field.onChange} 
                         defaultValue={field.value}
+                        value={field.value}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -297,12 +399,29 @@ const ServiceRegistration = () => {
                         </FormControl>
                         <SelectContent>
                           {TECHNICIANS.map((tech) => (
-                            <SelectItem key={tech} value={tech.toLowerCase()}>
+                            <SelectItem key={tech} value={tech}>
                               {tech}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Preço do Serviço*</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="R$ 0,00" 
+                          {...field} 
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -356,6 +475,7 @@ const ServiceRegistration = () => {
                         <RadioGroup
                           onValueChange={field.onChange}
                           defaultValue={field.value}
+                          value={field.value}
                           className="flex space-x-4 flex-wrap"
                         >
                           <div className="flex items-center space-x-2">
@@ -390,6 +510,7 @@ const ServiceRegistration = () => {
                       <Select 
                         onValueChange={field.onChange} 
                         defaultValue={field.value}
+                        value={field.value}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -397,8 +518,9 @@ const ServiceRegistration = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="waiting">Em espera</SelectItem>
+                          <SelectItem value="pending">Em espera</SelectItem>
                           <SelectItem value="in_progress">Em andamento</SelectItem>
+                          <SelectItem value="waiting_parts">Aguardando Peças</SelectItem>
                           <SelectItem value="completed">Concluído</SelectItem>
                           <SelectItem value="delivered">Entregue</SelectItem>
                         </SelectContent>
@@ -432,7 +554,7 @@ const ServiceRegistration = () => {
                   Voltar
                 </Button>
                 <Button type="submit" disabled={isLoading}>
-                  {isLoading ? "Carregando..." : "Cadastrar"}
+                  {isLoading ? "Carregando..." : isEditing ? "Salvar" : "Cadastrar"}
                 </Button>
               </div>
             </form>

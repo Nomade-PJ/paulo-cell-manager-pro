@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Form,
   FormControl,
@@ -53,9 +54,10 @@ const PHONE_BRANDS = [
 
 const DeviceRegistration = () => {
   const navigate = useNavigate();
-  const { clientId } = useParams<{ clientId: string }>();
+  const { clientId, deviceId } = useParams<{ clientId: string, deviceId?: string }>();
   const [isLoading, setIsLoading] = useState(false);
   const [clientData, setClientData] = useState<any>(null);
+  const [isEditing, setIsEditing] = useState(false);
   
   const form = useForm<DeviceFormValues>({
     resolver: zodResolver(deviceFormSchema),
@@ -74,59 +76,154 @@ const DeviceRegistration = () => {
     },
   });
   
-  // Fetch client data from localStorage (in a real app, this would be from your API)
   useEffect(() => {
-    const storedData = localStorage.getItem("registrationClient");
-    if (!storedData) {
+    if (!clientId) {
       toast({
         variant: "destructive",
         title: "Erro",
-        description: "Dados do cliente não encontrados. Por favor, reinicie o processo.",
+        description: "ID do cliente não encontrado",
       });
       navigate("/user-registration");
       return;
     }
     
-    const client = JSON.parse(storedData);
-    setClientData(client);
-    form.setValue("clientName", client.name);
-  }, [navigate, form]);
-  
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        // Fetch client data
+        const { data: clientData, error: clientError } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('id', clientId)
+          .single();
+          
+        if (clientError) throw clientError;
+        
+        setClientData(clientData);
+        form.setValue("clientName", clientData.name);
+        
+        // Check if we're editing an existing device
+        if (deviceId) {
+          setIsEditing(true);
+          const { data: deviceData, error: deviceError } = await supabase
+            .from('devices')
+            .select('*')
+            .eq('id', deviceId)
+            .single();
+            
+          if (deviceError) throw deviceError;
+          
+          // Fill form with device data
+          form.setValue("deviceType", deviceData.device_type || "smartphone");
+          form.setValue("brand", deviceData.brand);
+          form.setValue("model", deviceData.model);
+          form.setValue("serialNumber", deviceData.serial_number || "");
+          form.setValue("imei", deviceData.imei || "");
+          form.setValue("color", deviceData.color || "");
+          form.setValue("condition", deviceData.condition);
+          form.setValue("passwordType", deviceData.password_type || "none");
+          form.setValue("password", deviceData.password || "");
+          form.setValue("observations", deviceData.observations || "");
+        }
+      } catch (error) {
+        console.error("Erro ao carregar dados:", error);
+        toast({
+          variant: "destructive",
+          title: "Erro ao carregar dados",
+          description: "Não foi possível carregar os dados do cliente ou dispositivo.",
+        });
+        navigate("/clients");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [clientId, deviceId, form, navigate]);
+
   // Show password field only if the password type requires it
   const shouldShowPasswordField = form.watch("passwordType") !== "none";
   
   const onSubmit = async (data: DeviceFormValues) => {
+    if (!clientId) return;
+    
     setIsLoading(true);
     
-    // In a real app, you would save this to your database
-    const deviceId = Math.random().toString(36).substring(2, 11);
-    
-    // For now, we'll use localStorage to simulate persistence between steps
-    localStorage.setItem("registrationDevice", JSON.stringify({
-      id: deviceId,
-      clientId,
-      ...data
-    }));
-    
-    toast({
-      title: "Dispositivo registrado com sucesso",
-      description: "Você será redirecionado para cadastrar o serviço.",
-    });
-    
-    // Navigate to the next step with client ID and device ID
-    navigate(`/service-registration/${clientId}/${deviceId}`);
-    setIsLoading(false);
+    try {
+      // Prepare data for saving
+      const deviceData = {
+        customer_id: clientId,
+        device_type: data.deviceType,
+        brand: data.brand,
+        model: data.model,
+        serial_number: data.serialNumber || null,
+        imei: data.imei || null,
+        color: data.color || null,
+        condition: data.condition,
+        password_type: data.passwordType,
+        password: data.password || null,
+        observations: data.observations || null,
+        updated_at: new Date().toISOString()
+      };
+      
+      let newDeviceId: string;
+      
+      if (isEditing && deviceId) {
+        // Update existing device
+        const { error } = await supabase
+          .from('devices')
+          .update(deviceData)
+          .eq('id', deviceId);
+          
+        if (error) throw error;
+        
+        newDeviceId = deviceId;
+        
+        toast({
+          title: "Dispositivo atualizado com sucesso",
+          description: "Os dados do dispositivo foram atualizados.",
+        });
+      } else {
+        // Create new device
+        const { data: insertData, error } = await supabase
+          .from('devices')
+          .insert({ ...deviceData, created_at: new Date().toISOString() })
+          .select('id')
+          .single();
+          
+        if (error) throw error;
+        
+        newDeviceId = insertData.id;
+        
+        toast({
+          title: "Dispositivo registrado com sucesso",
+          description: "Você será redirecionado para cadastrar o serviço.",
+        });
+      }
+      
+      // Navigate to the next step with client ID and device ID
+      navigate(`/service-registration/${clientId}/${newDeviceId}`);
+    } catch (error) {
+      console.error("Erro ao salvar dispositivo:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao salvar",
+        description: "Não foi possível salvar os dados do dispositivo.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   const goBack = () => {
-    navigate("/user-registration");
+    navigate(`/user-registration?id=${clientId}`);
   };
   
   return (
     <div className="space-y-6">
       <PageHeader 
-        title="Cadastro de Dispositivo" 
-        description="Preencha os detalhes do dispositivo."
+        title={isEditing ? "Editar Dispositivo" : "Cadastro de Dispositivo"} 
+        description={isEditing ? "Atualize os detalhes do dispositivo." : "Preencha os detalhes do dispositivo."}
       >
         <Smartphone className="h-6 w-6" />
       </PageHeader>
@@ -173,6 +270,7 @@ const DeviceRegistration = () => {
                         <Select 
                           onValueChange={field.onChange} 
                           defaultValue={field.value}
+                          value={field.value}
                         >
                           <FormControl>
                             <SelectTrigger>
@@ -199,6 +297,7 @@ const DeviceRegistration = () => {
                         <Select 
                           onValueChange={field.onChange} 
                           defaultValue={field.value}
+                          value={field.value}
                         >
                           <FormControl>
                             <SelectTrigger>
@@ -289,6 +388,7 @@ const DeviceRegistration = () => {
                         <Select 
                           onValueChange={field.onChange} 
                           defaultValue={field.value}
+                          value={field.value}
                         >
                           <FormControl>
                             <SelectTrigger>
@@ -315,6 +415,7 @@ const DeviceRegistration = () => {
                         <Select 
                           onValueChange={field.onChange} 
                           defaultValue={field.value}
+                          value={field.value}
                         >
                           <FormControl>
                             <SelectTrigger>
@@ -381,7 +482,7 @@ const DeviceRegistration = () => {
                   Voltar
                 </Button>
                 <Button type="submit" disabled={isLoading}>
-                  {isLoading ? "Carregando..." : "Próximo"}
+                  {isLoading ? "Carregando..." : isEditing ? "Salvar" : "Próximo"}
                 </Button>
               </div>
             </form>

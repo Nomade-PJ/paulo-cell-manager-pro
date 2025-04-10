@@ -1,6 +1,6 @@
 
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,6 +19,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { cpfRegex, cnpjRegex } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 const userFormSchema = z.object({
   name: z.string().min(3, { message: "Nome deve conter pelo menos 3 caracteres" }),
@@ -46,8 +47,12 @@ type UserFormValues = z.infer<typeof userFormSchema>;
 
 const UserRegistration = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const clientId = queryParams.get('id');
   const [documentType, setDocumentType] = useState<"cpf" | "cnpj">("cpf");
   const [isLoading, setIsLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
@@ -66,6 +71,52 @@ const UserRegistration = () => {
       complement: ""
     },
   });
+  
+  useEffect(() => {
+    // If we have a clientId in the URL, fetch the client data
+    if (clientId) {
+      setIsEditing(true);
+      fetchClientData(clientId);
+    }
+  }, [clientId]);
+  
+  const fetchClientData = async (id: string) => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', id)
+        .single();
+        
+      if (error) throw error;
+      
+      // Fill form with client data
+      form.setValue('name', data.name);
+      form.setValue('documentType', data.document_type);
+      setDocumentType(data.document_type as "cpf" | "cnpj");
+      form.setValue('document', data.document);
+      form.setValue('phone', data.phone || "");
+      form.setValue('email', data.email || "");
+      form.setValue('cep', data.cep || "");
+      form.setValue('state', data.state || "");
+      form.setValue('city', data.city || "");
+      form.setValue('neighborhood', data.neighborhood || "");
+      form.setValue('street', data.street || "");
+      form.setValue('number', data.number || "");
+      form.setValue('complement', data.complement || "");
+    } catch (error) {
+      console.error("Erro ao buscar dados do cliente:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao buscar dados",
+        description: "Não foi possível carregar os dados do cliente.",
+      });
+      navigate("/clients");
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   // Handle CEP lookup
   const handleCepLookup = async (cep: string) => {
@@ -147,30 +198,78 @@ const UserRegistration = () => {
       return;
     }
     
-    // In a real app, you would save this to your database
-    const clientId = Math.random().toString(36).substring(2, 11);
-    
-    // For now, we'll use localStorage to simulate persistence between steps
-    localStorage.setItem("registrationClient", JSON.stringify({
-      id: clientId,
-      ...data
-    }));
-    
-    toast({
-      title: "Cliente registrado com sucesso",
-      description: "Você será redirecionado para cadastrar o dispositivo.",
-    });
-    
-    // Navigate to the next step with client ID
-    navigate(`/device-registration/${clientId}`);
-    setIsLoading(false);
+    try {
+      // Prepare data for saving
+      const customerData = {
+        name: data.name,
+        document_type: data.documentType,
+        document: data.document,
+        phone: data.phone || null,
+        email: data.email || null,
+        cep: data.cep || null,
+        state: data.state || null,
+        city: data.city || null,
+        neighborhood: data.neighborhood || null,
+        street: data.street || null,
+        number: data.number || null,
+        complement: data.complement || null,
+        updated_at: new Date().toISOString()
+      };
+      
+      let newClientId: string;
+      
+      if (isEditing && clientId) {
+        // Update existing customer
+        const { error } = await supabase
+          .from('customers')
+          .update(customerData)
+          .eq('id', clientId);
+          
+        if (error) throw error;
+        
+        newClientId = clientId;
+        
+        toast({
+          title: "Cliente atualizado com sucesso",
+          description: "Os dados do cliente foram atualizados.",
+        });
+      } else {
+        // Create new customer
+        const { data: insertData, error } = await supabase
+          .from('customers')
+          .insert({ ...customerData, created_at: new Date().toISOString() })
+          .select('id')
+          .single();
+          
+        if (error) throw error;
+        
+        newClientId = insertData.id;
+        
+        toast({
+          title: "Cliente registrado com sucesso",
+          description: "Você será redirecionado para cadastrar o dispositivo.",
+        });
+      }
+      
+      // Navigate to the next step with client ID
+      navigate(`/device-registration/${newClientId}`);
+    } catch (error) {
+      console.error("Erro ao salvar cliente:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao salvar",
+        description: "Não foi possível salvar os dados do cliente.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   return (
     <div className="space-y-6">
       <PageHeader 
-        title="Cadastro Completo do Usuário" 
-        description="Preencha os dados do cliente para continuar com o cadastro."
+        title={isEditing ? "Editar Cliente" : "Cadastro Completo do Usuário"} 
+        description={isEditing ? "Atualize os dados do cliente." : "Preencha os dados do cliente para continuar com o cadastro."}
       >
         <UserPlus className="h-6 w-6" />
       </PageHeader>
@@ -404,8 +503,16 @@ const UserRegistration = () => {
             </div>
             
             <div className="flex justify-end">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => navigate("/clients")} 
+                className="mr-2"
+              >
+                Cancelar
+              </Button>
               <Button type="submit" disabled={isLoading} className="w-full md:w-auto">
-                {isLoading ? "Carregando..." : "Próximo"}
+                {isLoading ? "Carregando..." : isEditing ? "Salvar" : "Próximo"}
               </Button>
             </div>
           </form>

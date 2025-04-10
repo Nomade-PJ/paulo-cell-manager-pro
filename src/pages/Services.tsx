@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,10 +18,29 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, FileEdit, Wrench, Check, Calendar } from "lucide-react";
-import { Service } from "@/types";
+import { Plus, Search, FileEdit, Wrench, Check, Calendar, Trash2, Info } from "lucide-react";
+import { Service, Customer, Device } from "@/types";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const Services = () => {
   const navigate = useNavigate();
@@ -28,169 +48,91 @@ const Services = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [serviceToDelete, setServiceToDelete] = useState<string | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [statusUpdateDialog, setStatusUpdateDialog] = useState(false);
 
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        // Simulação de dados (em produção seria uma chamada para a API)
-        await new Promise(resolve => setTimeout(resolve, 800));
+        setLoading(true);
         
-        const mockServices: Service[] = [
-          {
-            id: "s1",
-            device_id: "d1",
-            customer_id: "c1",
-            status: "in_progress",
-            issue_description: "Tela quebrada",
-            diagnosis: "Display LCD danificado",
-            solution: "Substituir tela completa",
-            technician_id: "t1",
-            priority: "high",
-            price: 350,
-            cost: 200,
-            estimated_completion_date: "2024-04-10T00:00:00Z",
-            created_at: "2024-04-07T10:30:00Z",
-            updated_at: "2024-04-07T14:20:00Z"
-          },
-          {
-            id: "s2",
-            device_id: "d2",
-            customer_id: "c2",
-            status: "waiting_parts",
-            issue_description: "Bateria não carrega",
-            diagnosis: "Porta de carregamento danificada",
-            technician_id: "t2",
-            priority: "normal",
-            price: 180,
-            cost: 60,
-            estimated_completion_date: "2024-04-15T00:00:00Z",
-            created_at: "2024-04-06T09:15:00Z",
-            updated_at: "2024-04-06T11:45:00Z"
-          },
-          {
-            id: "s3",
-            device_id: "d3",
-            customer_id: "c3",
-            status: "pending",
-            issue_description: "Não liga",
-            priority: "urgent",
-            price: 120,
-            estimated_completion_date: "2024-04-09T00:00:00Z",
-            created_at: "2024-04-08T08:00:00Z",
-            updated_at: "2024-04-08T08:00:00Z"
-          },
-          {
-            id: "s4",
-            device_id: "d4",
-            customer_id: "c4",
-            status: "completed",
-            issue_description: "Tela com manchas",
-            diagnosis: "Infiltração de água na tela",
-            solution: "Substituição da tela",
-            technician_id: "t1",
-            priority: "normal",
-            price: 280,
-            cost: 150,
-            completion_date: "2024-04-07T16:30:00Z",
-            warranty_until: "2024-07-07T16:30:00Z",
-            created_at: "2024-04-05T10:00:00Z",
-            updated_at: "2024-04-07T16:30:00Z"
-          },
-          {
-            id: "s5",
-            device_id: "d5",
-            customer_id: "c5",
-            status: "delivered",
-            issue_description: "Câmera não funciona",
-            diagnosis: "Módulo da câmera danificado",
-            solution: "Substituição do módulo de câmera",
-            technician_id: "t2",
-            priority: "low",
-            price: 220,
-            cost: 90,
-            completion_date: "2024-04-06T15:45:00Z",
-            warranty_until: "2024-07-06T15:45:00Z",
-            created_at: "2024-04-04T14:20:00Z",
-            updated_at: "2024-04-06T15:45:00Z"
-          }
-        ];
-        
-        // Check if there's registered service data in localStorage
-        const storedServiceData = localStorage.getItem("registrationService");
-        if (storedServiceData) {
-          const serviceData = JSON.parse(storedServiceData);
+        const { data, error } = await supabase
+          .from('services')
+          .select(`
+            *,
+            customers:customer_id (
+              name
+            ),
+            devices:device_id (
+              brand,
+              model
+            )
+          `)
+          .order('created_at', { ascending: false });
           
-          // Status mapping
-          const statusMap: Record<string, Service["status"]> = {
-            "waiting": "pending",
-            "in_progress": "in_progress",
-            "completed": "completed",
-            "delivered": "delivered"
+        if (error) throw error;
+        
+        // Transform data to match Service type
+        const transformedData = data.map(item => {
+          const serviceTypes = item.service_type.split(',').map(s => s.trim());
+          
+          // Convert service types to a readable format
+          const serviceTypeLabels: Record<string, string> = {
+            "battery": "Substituição de Bateria",
+            "board": "Reparo de Placa",
+            "connector": "Troca de Conector de Carga",
+            "software": "Atualização de Software",
+            "cleaning": "Limpeza Interna",
+            "other": item.other_service_description || "Serviço personalizado"
           };
           
-          // Priority mapping based on service type
-          const priorityMap: Record<string, Service["priority"]> = {
-            "battery_replacement": "normal",
-            "board_repair": "high",
-            "charging_port": "normal",
-            "software_update": "low",
-            "internal_cleaning": "low",
-            "other": "normal"
+          const issue_description = serviceTypes
+            .map(type => serviceTypeLabels[type] || type)
+            .join(", ");
+          
+          return {
+            id: item.id,
+            device_id: item.device_id,
+            device_info: `${item.devices.brand} ${item.devices.model}`,
+            customer_id: item.customer_id,
+            customer_name: item.customers.name,
+            status: item.status,
+            service_type: item.service_type,
+            issue_description,
+            diagnosis: item.diagnosis,
+            solution: item.solution,
+            technician_id: item.technician_id,
+            priority: item.priority as "low" | "normal" | "high" | "urgent",
+            price: Number(item.price),
+            cost: item.cost ? Number(item.cost) : undefined,
+            estimated_completion_date: item.estimated_completion_date,
+            completion_date: item.completion_date,
+            warranty_until: item.warranty_until,
+            created_at: item.created_at,
+            updated_at: item.updated_at,
+            observations: item.observations
           };
-          
-          const newService: Service = {
-            id: serviceData.id || `s${Math.floor(Math.random() * 10000)}`,
-            device_id: serviceData.deviceId,
-            customer_id: serviceData.clientId,
-            status: statusMap[serviceData.status] || "pending",
-            issue_description: serviceData.serviceType === "other" ? 
-              serviceData.otherServiceDescription || "Serviço personalizado" : 
-              getServiceDescription(serviceData.serviceType),
-            technician_id: serviceData.technicianId,
-            priority: priorityMap[serviceData.serviceType] || "normal",
-            price: serviceData.price || 100, // Default price
-            estimated_completion_date: serviceData.estimatedDate,
-            warranty_until: serviceData.warrantyDate,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          };
-          
-          // Check if service already exists by ID
-          const existingServiceIndex = mockServices.findIndex(service => service.id === newService.id);
-          
-          if (existingServiceIndex >= 0) {
-            // Replace existing service
-            mockServices[existingServiceIndex] = newService;
-          } else {
-            // Add new service
-            mockServices.unshift(newService);
-          }
-        }
+        });
         
-        setServices(mockServices);
+        setServices(transformedData);
       } catch (error) {
         console.error("Erro ao carregar serviços:", error);
+        toast({
+          variant: "destructive",
+          title: "Erro ao carregar serviços",
+          description: "Não foi possível carregar a lista de serviços.",
+        });
       } finally {
         setLoading(false);
       }
     };
     
     fetchServices();
-  }, []);
-
-  // Helper function to get service description based on type
-  const getServiceDescription = (serviceType: string): string => {
-    const descriptions: Record<string, string> = {
-      "battery_replacement": "Substituição de bateria",
-      "board_repair": "Reparo de placa",
-      "charging_port": "Troca de conector de carga",
-      "software_update": "Atualização de software",
-      "internal_cleaning": "Limpeza interna",
-      "other": "Serviço personalizado"
-    };
-    
-    return descriptions[serviceType] || "Serviço não especificado";
-  };
+  }, [refreshTrigger]);
 
   const filteredServices = services
     .filter(service => 
@@ -198,7 +140,9 @@ const Services = () => {
     )
     .filter(service => 
       service.issue_description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      service.id.toLowerCase().includes(searchTerm.toLowerCase())
+      service.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      service.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      service.device_info.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
   // Função para renderizar o badge de status
@@ -237,45 +181,177 @@ const Services = () => {
     );
   };
   
-  const handleNewService = () => {
-    // Check if we have client and device data in localStorage
-    const storedClientData = localStorage.getItem("registrationClient");
-    const storedDeviceData = localStorage.getItem("registrationDevice");
-    
-    if (storedClientData && storedDeviceData) {
-      const clientData = JSON.parse(storedClientData);
-      const deviceData = JSON.parse(storedDeviceData);
+  const handleNewService = async () => {
+    try {
+      const { data: customersData, error: customersError } = await supabase
+        .from('customers')
+        .select('id, name')
+        .order('name', { ascending: true })
+        .limit(1);
+        
+      if (customersError) throw customersError;
       
-      navigate(`/service-registration/${clientData.id}/${deviceData.id}`);
-    } else {
+      if (customersData.length === 0) {
+        toast({
+          title: "Cliente não encontrado",
+          description: "Por favor, cadastre um cliente primeiro.",
+          variant: "destructive",
+        });
+        navigate("/user-registration");
+        return;
+      }
+      
+      const { data: devicesData, error: devicesError } = await supabase
+        .from('devices')
+        .select('id')
+        .eq('customer_id', customersData[0].id)
+        .limit(1);
+        
+      if (devicesError) throw devicesError;
+      
+      if (devicesData.length === 0) {
+        toast({
+          title: "Dispositivo não encontrado",
+          description: "Por favor, cadastre um dispositivo primeiro.",
+          variant: "destructive",
+        });
+        navigate(`/device-registration/${customersData[0].id}`);
+        return;
+      }
+      
+      // Navigate to service registration with client ID and device ID
+      navigate(`/service-registration/${customersData[0].id}/${devicesData[0].id}`);
+    } catch (error) {
+      console.error("Erro ao verificar dados:", error);
       toast({
-        title: "Dados incompletos",
-        description: "Por favor, cadastre um cliente e um dispositivo primeiro.",
         variant: "destructive",
+        title: "Erro",
+        description: "Ocorreu um erro ao iniciar o registro de serviço.",
       });
       navigate("/user-registration");
     }
   };
   
   const handleEditService = (serviceId: string) => {
-    toast({
-      title: "Editar Serviço",
-      description: `Função para editar o serviço ${serviceId} será implementada em breve.`,
-    });
+    navigate(`/service-registration/${serviceId}`);
   };
   
-  const handleStartService = (serviceId: string) => {
-    toast({
-      title: "Iniciar Serviço",
-      description: `Função para iniciar o serviço ${serviceId} será implementada em breve.`,
-    });
+  const handleStartService = async (service: Service) => {
+    if (service.status === 'in_progress') {
+      toast({
+        description: "Este serviço já está em andamento.",
+      });
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('services')
+        .update({ status: 'in_progress', updated_at: new Date().toISOString() })
+        .eq('id', service.id);
+        
+      if (error) throw error;
+      
+      toast({
+        title: "Serviço iniciado",
+        description: "Status atualizado para Em Andamento.",
+      });
+      
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error) {
+      console.error("Erro ao iniciar serviço:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao iniciar serviço",
+        description: "Não foi possível atualizar o status do serviço.",
+      });
+    }
   };
   
-  const handleCompleteService = (serviceId: string) => {
-    toast({
-      title: "Concluir Serviço",
-      description: `Função para concluir o serviço ${serviceId} será implementada em breve.`,
-    });
+  const handleCompleteService = (service: Service) => {
+    setSelectedService(service);
+    setStatusUpdateDialog(true);
+  };
+  
+  const confirmCompleteService = async () => {
+    if (!selectedService) return;
+    
+    try {
+      // Calculate warranty date based on warranty period (1, 3, 6 or 12 months)
+      const currentDate = new Date();
+      const warrantyMonths = parseInt(selectedService.warranty_period || '3');
+      const warrantyDate = new Date(currentDate);
+      warrantyDate.setMonth(currentDate.getMonth() + warrantyMonths);
+      
+      const { error } = await supabase
+        .from('services')
+        .update({ 
+          status: 'completed', 
+          completion_date: currentDate.toISOString(),
+          warranty_until: warrantyDate.toISOString(),
+          updated_at: currentDate.toISOString()
+        })
+        .eq('id', selectedService.id);
+        
+      if (error) throw error;
+      
+      toast({
+        title: "Serviço concluído",
+        description: "Status atualizado para Concluído.",
+      });
+      
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error) {
+      console.error("Erro ao concluir serviço:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao concluir serviço",
+        description: "Não foi possível atualizar o status do serviço.",
+      });
+    } finally {
+      setStatusUpdateDialog(false);
+      setSelectedService(null);
+    }
+  };
+  
+  const handleDeleteService = (serviceId: string) => {
+    setServiceToDelete(serviceId);
+    setDeleteDialogOpen(true);
+  };
+  
+  const confirmDeleteService = async () => {
+    if (!serviceToDelete) return;
+    
+    try {
+      const { error } = await supabase
+        .from('services')
+        .delete()
+        .eq('id', serviceToDelete);
+        
+      if (error) throw error;
+      
+      toast({
+        title: "Serviço excluído",
+        description: "O serviço foi excluído com sucesso.",
+      });
+      
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error) {
+      console.error("Erro ao excluir serviço:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao excluir serviço",
+        description: "Não foi possível excluir o serviço.",
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setServiceToDelete(null);
+    }
+  };
+  
+  const handleViewDetails = (service: Service) => {
+    setSelectedService(service);
+    setDetailsDialogOpen(true);
   };
 
   return (
@@ -292,7 +368,7 @@ const Services = () => {
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por descrição ou ID..."
+            placeholder="Buscar por descrição, cliente ou dispositivo..."
             className="pl-8"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -320,6 +396,8 @@ const Services = () => {
           <TableHeader>
             <TableRow>
               <TableHead>ID</TableHead>
+              <TableHead>Cliente</TableHead>
+              <TableHead>Dispositivo</TableHead>
               <TableHead>Descrição do Problema</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Prioridade</TableHead>
@@ -331,7 +409,7 @@ const Services = () => {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-10">
+                <TableCell colSpan={9} className="text-center py-10">
                   <div className="flex justify-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent"></div>
                   </div>
@@ -339,15 +417,19 @@ const Services = () => {
               </TableRow>
             ) : filteredServices.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                   Nenhum serviço encontrado.
                 </TableCell>
               </TableRow>
             ) : (
               filteredServices.map((service) => (
                 <TableRow key={service.id}>
-                  <TableCell className="font-medium">{service.id}</TableCell>
-                  <TableCell>{service.issue_description}</TableCell>
+                  <TableCell className="font-medium">{service.id.substring(0, 8)}</TableCell>
+                  <TableCell>{service.customer_name}</TableCell>
+                  <TableCell>{service.device_info}</TableCell>
+                  <TableCell className="max-w-[200px] truncate" title={service.issue_description}>
+                    {service.issue_description}
+                  </TableCell>
                   <TableCell>{renderStatusBadge(service.status)}</TableCell>
                   <TableCell>{renderPriorityBadge(service.priority)}</TableCell>
                   <TableCell>
@@ -361,11 +443,19 @@ const Services = () => {
                       currency: 'BRL'
                     })}
                   </TableCell>
-                  <TableCell className="text-right space-x-2">
+                  <TableCell className="text-right space-x-1">
                     <Button 
                       variant="ghost" 
                       size="icon"
-                      onClick={() => handleStartService(service.id)}
+                      onClick={() => handleViewDetails(service)}
+                    >
+                      <Info className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => handleStartService(service)}
+                      disabled={service.status === 'completed' || service.status === 'delivered' || service.status === 'canceled'}
                     >
                       <Wrench className="h-4 w-4" />
                     </Button>
@@ -379,9 +469,17 @@ const Services = () => {
                     <Button 
                       variant="ghost" 
                       size="icon"
-                      onClick={() => handleCompleteService(service.id)}
+                      onClick={() => handleCompleteService(service)}
+                      disabled={service.status === 'completed' || service.status === 'delivered' || service.status === 'canceled'}
                     >
                       <Check className="h-4 w-4 text-green-500" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => handleDeleteService(service.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -390,6 +488,138 @@ const Services = () => {
           </TableBody>
         </Table>
       </div>
+      
+      {/* Service Details Dialog */}
+      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Detalhes do Serviço</DialogTitle>
+          </DialogHeader>
+          {selectedService && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Cliente</p>
+                  <p className="font-medium">{selectedService.customer_name}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Dispositivo</p>
+                  <p className="font-medium">{selectedService.device_info}</p>
+                </div>
+              </div>
+              
+              <div>
+                <p className="text-sm text-gray-500">Tipo de Serviço</p>
+                <p>{selectedService.issue_description}</p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Status</p>
+                  <div className="mt-1">{renderStatusBadge(selectedService.status)}</div>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Prioridade</p>
+                  <div className="mt-1">{renderPriorityBadge(selectedService.priority)}</div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Previsão de Conclusão</p>
+                  <p>
+                    {selectedService.estimated_completion_date 
+                      ? new Date(selectedService.estimated_completion_date).toLocaleDateString('pt-BR')
+                      : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Data de Conclusão</p>
+                  <p>
+                    {selectedService.completion_date 
+                      ? new Date(selectedService.completion_date).toLocaleDateString('pt-BR')
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Valor</p>
+                  <p className="font-medium">
+                    {selectedService.price.toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL'
+                    })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Garantia até</p>
+                  <p>
+                    {selectedService.warranty_until 
+                      ? new Date(selectedService.warranty_until).toLocaleDateString('pt-BR')
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+              
+              {selectedService.observations && (
+                <div>
+                  <p className="text-sm text-gray-500">Observações</p>
+                  <p className="text-sm bg-gray-50 p-2 rounded mt-1">
+                    {selectedService.observations}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setDetailsDialogOpen(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Confirm Complete Service Dialog */}
+      <AlertDialog open={statusUpdateDialog} onOpenChange={setStatusUpdateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar conclusão do serviço</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja marcar este serviço como concluído? Isso atualizará o status e registrará a data de conclusão.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmCompleteService}
+              className="bg-green-500 hover:bg-green-600"
+            >
+              Concluir Serviço
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirm Delete Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este serviço? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteService}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

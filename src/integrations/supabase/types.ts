@@ -9,6 +9,119 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      customers: {
+        Row: {
+          cep: string | null
+          city: string | null
+          complement: string | null
+          created_at: string
+          document: string
+          document_type: string
+          email: string | null
+          id: string
+          name: string
+          neighborhood: string | null
+          number: string | null
+          phone: string | null
+          state: string | null
+          street: string | null
+          updated_at: string
+        }
+        Insert: {
+          cep?: string | null
+          city?: string | null
+          complement?: string | null
+          created_at?: string
+          document: string
+          document_type: string
+          email?: string | null
+          id?: string
+          name: string
+          neighborhood?: string | null
+          number?: string | null
+          phone?: string | null
+          state?: string | null
+          street?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cep?: string | null
+          city?: string | null
+          complement?: string | null
+          created_at?: string
+          document?: string
+          document_type?: string
+          email?: string | null
+          id?: string
+          name?: string
+          neighborhood?: string | null
+          number?: string | null
+          phone?: string | null
+          state?: string | null
+          street?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      devices: {
+        Row: {
+          brand: string
+          color: string | null
+          condition: string
+          created_at: string
+          customer_id: string
+          device_type: string
+          id: string
+          imei: string | null
+          model: string
+          observations: string | null
+          password: string | null
+          password_type: string
+          serial_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          brand: string
+          color?: string | null
+          condition: string
+          created_at?: string
+          customer_id: string
+          device_type: string
+          id?: string
+          imei?: string | null
+          model: string
+          observations?: string | null
+          password?: string | null
+          password_type: string
+          serial_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          brand?: string
+          color?: string | null
+          condition?: string
+          created_at?: string
+          customer_id?: string
+          device_type?: string
+          id?: string
+          imei?: string | null
+          model?: string
+          observations?: string | null
+          password?: string | null
+          password_type?: string
+          serial_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -35,6 +148,75 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      services: {
+        Row: {
+          created_at: string
+          customer_id: string
+          device_id: string
+          estimated_completion_date: string | null
+          id: string
+          observations: string | null
+          other_service_description: string | null
+          price: number
+          priority: string | null
+          service_type: string
+          status: string
+          technician_id: string | null
+          updated_at: string
+          warranty_period: string | null
+          warranty_until: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          device_id: string
+          estimated_completion_date?: string | null
+          id?: string
+          observations?: string | null
+          other_service_description?: string | null
+          price: number
+          priority?: string | null
+          service_type: string
+          status?: string
+          technician_id?: string | null
+          updated_at?: string
+          warranty_period?: string | null
+          warranty_until?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          device_id?: string
+          estimated_completion_date?: string | null
+          id?: string
+          observations?: string | null
+          other_service_description?: string | null
+          price?: number
+          priority?: string | null
+          service_type?: string
+          status?: string
+          technician_id?: string | null
+          updated_at?: string
+          warranty_period?: string | null
+          warranty_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "services_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
