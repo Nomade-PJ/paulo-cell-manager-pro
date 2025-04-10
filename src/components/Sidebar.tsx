@@ -10,7 +10,8 @@ import {
   Settings, 
   BarChart3, 
   Menu,
-  FileText
+  FileText,
+  UserPlus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,11 +26,12 @@ const Sidebar = () => {
   
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+    { icon: UserPlus, label: "Cadastro Completo do Usuário", path: "/user-registration" },
     { icon: Users, label: "Clientes", path: "/clients" },
     { icon: Smartphone, label: "Dispositivos", path: "/devices" },
     { icon: Wrench, label: "Serviços", path: "/services" },
     { icon: Package, label: "Estoque", path: "/inventory" },
-    { icon: FileText, label: "Documentos", path: "/documents" }, // New menu item
+    { icon: FileText, label: "Documentos", path: "/documents" },
     { icon: BarChart3, label: "Relatórios", path: "/reports" },
     { icon: Settings, label: "Configurações", path: "/settings" },
   ];

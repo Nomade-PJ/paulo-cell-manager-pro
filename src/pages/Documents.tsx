@@ -6,11 +6,12 @@ import { PageHeader } from "@/components/PageHeader";
 const Documents = () => {
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader 
         title="Documentos"
         description="Gerenciar documentos e arquivos do sistema."
-        icon={<FileText className="h-6 w-6" />}
-      />
+      >
+        <FileText className="h-6 w-6" />
+      </PageHeader>
       
       <Card>
         <CardHeader>

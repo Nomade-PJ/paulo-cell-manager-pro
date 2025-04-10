@@ -16,6 +16,9 @@ import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import Layout from "./components/Layout";
 import { AuthProvider } from "./contexts/AuthContext";
+import UserRegistration from "./pages/UserRegistration";
+import DeviceRegistration from "./pages/DeviceRegistration";
+import ServiceRegistration from "./pages/ServiceRegistration";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,6 +40,9 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<Layout />}>
               <Route index element={<Dashboard />} />
+              <Route path="user-registration" element={<UserRegistration />} />
+              <Route path="device-registration/:clientId" element={<DeviceRegistration />} />
+              <Route path="service-registration/:clientId/:deviceId" element={<ServiceRegistration />} />
               <Route path="clients" element={<Clients />} />
               <Route path="devices" element={<Devices />} />
               <Route path="services" element={<Services />} />
