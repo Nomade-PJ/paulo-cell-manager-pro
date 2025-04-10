@@ -1,7 +1,7 @@
 
-import { createContext, ReactNode, useState, useEffect, useContext } from "react";
+import React, { createContext, ReactNode, useState, useEffect, useContext } from "react";
 import { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabaseClient";
 import { toast } from "sonner";
 
 interface AuthState {
@@ -48,7 +48,7 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-export const AuthProvider = ({ children }: AuthProviderProps) => {
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [authState, setAuthState] = useState<AuthState>({
     session: null,
     user: null,
@@ -106,7 +106,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     // Set up authentication state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         setAuthState(prev => ({ 
           ...prev, 
           session, 
