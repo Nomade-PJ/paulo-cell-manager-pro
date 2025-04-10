@@ -1,10 +1,10 @@
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Wrench, ArrowLeft } from "lucide-react";
+import { Wrench, ArrowLeft, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
@@ -27,147 +27,160 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { format } from "date-fns";
-import { pt } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { ptBR } from 'date-fns/locale';
 
-const serviceTypes = [
-  { id: "battery", label: "Substituição de Bateria" },
-  { id: "board", label: "Reparo de Placa" },
-  { id: "connector", label: "Troca de Conector de Carga" },
-  { id: "software", label: "Atualização do Software" },
-  { id: "cleaning", label: "Limpeza Interna" },
-  { id: "other", label: "Outros Serviços" },
-] as const;
+// Status enum
+const StatusTypes = {
+  pending: "pending",
+  in_progress: "in_progress",
+  waiting_parts: "waiting_parts",
+  completed: "completed",
+  delivered: "delivered"
+} as const;
+
+// Priority enum
+const PriorityTypes = {
+  low: "low",
+  normal: "normal",
+  high: "high",
+  urgent: "urgent"
+} as const;
+
+// Warranty period enum
+const WarrantyPeriods = {
+  "1": "1",
+  "3": "3",
+  "6": "6",
+  "12": "12"
+} as const;
+
+// Service types
+const SERVICE_TYPES = [
+  { value: "screen_repair", label: "Troca de Tela" },
+  { value: "battery_replacement", label: "Troca de Bateria" },
+  { value: "water_damage", label: "Dano por Água" },
+  { value: "software_issue", label: "Problema de Software" },
+  { value: "charging_port", label: "Porta de Carregamento" },
+  { value: "button_repair", label: "Reparo de Botões" },
+  { value: "camera_repair", label: "Reparo de Câmera" },
+  { value: "mic_speaker_repair", label: "Reparo de Microfone/Alto-falante" },
+  { value: "diagnostics", label: "Diagnóstico Completo" },
+  { value: "unlocking", label: "Desbloqueio" },
+  { value: "data_recovery", label: "Recuperação de Dados" },
+  { value: "other", label: "Outro" },
+];
 
 const serviceFormSchema = z.object({
   clientName: z.string(),
   deviceInfo: z.string(),
-  serviceTypes: z.array(z.string()).min(1, { message: "Selecione pelo menos um serviço" }),
-  otherService: z.string().optional(),
-  technician: z.string().min(1, { message: "Selecione o técnico responsável" }),
-  price: z.string().min(1, { message: "Informe o preço" }),
-  estimatedCompletion: z.date(),
-  warranty: z.enum(["1", "3", "6", "12"]),
+  serviceType: z.string().min(1, { message: "Selecione um tipo de serviço" }),
+  otherServiceDescription: z.string().optional(),
+  technicianId: z.string().optional(),
+  price: z.number().min(0, { message: "Informe o preço" }),
+  estimatedCompletionDate: z.date().optional(),
+  warrantyPeriod: z.enum(["1", "3", "6", "12"]).optional(),
   status: z.enum(["pending", "in_progress", "waiting_parts", "completed", "delivered"]),
   observations: z.string().optional(),
 });
 
 type ServiceFormValues = z.infer<typeof serviceFormSchema>;
 
-// Mock technicians for demo purposes
-const TECHNICIANS = [
-  "Paulo Silva", "Maria Oliveira", "João Santos", "Ana Pereira", "Carlos Ferreira"
-];
-
 const ServiceRegistration = () => {
   const navigate = useNavigate();
-  const { clientId, deviceId, serviceId } = useParams<{ clientId: string, deviceId: string, serviceId?: string }>();
+  const { clientId, deviceId } = useParams<{ clientId: string, deviceId: string }>();
   const [isLoading, setIsLoading] = useState(false);
   const [clientData, setClientData] = useState<any>(null);
   const [deviceData, setDeviceData] = useState<any>(null);
-  const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [currentServiceId, setCurrentServiceId] = useState<string | null>(null);
   
   const form = useForm<ServiceFormValues>({
     resolver: zodResolver(serviceFormSchema),
     defaultValues: {
       clientName: "",
       deviceInfo: "",
-      serviceTypes: [],
-      otherService: "",
-      technician: "",
-      price: "",
-      estimatedCompletion: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1 week from now
-      warranty: "3",
-      status: "pending",
+      serviceType: "",
+      otherServiceDescription: "",
+      technicianId: "",
+      price: 0,
+      estimatedCompletionDate: undefined,
+      warrantyPeriod: "3",
+      status: "pending" as keyof typeof StatusTypes,
       observations: "",
     },
   });
   
   useEffect(() => {
+    if (!clientId || !deviceId) {
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: "Informações do cliente ou dispositivo não encontradas",
+      });
+      navigate("/clients");
+      return;
+    }
+    
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        if (serviceId) {
-          // We're editing an existing service
-          setIsEditing(true);
+        // Fetch client data
+        const { data: clientData, error: clientError } = await supabase
+          .from("customers")
+          .select("*")
+          .eq('id', clientId)
+          .single();
           
-          // Fetch service data
+        if (clientError) throw clientError;
+        setClientData(clientData);
+        
+        // Fetch device data
+        const { data: deviceData, error: deviceError } = await supabase
+          .from("devices")
+          .select("*")
+          .eq('id', deviceId)
+          .single();
+          
+        if (deviceError) throw deviceError;
+        setDeviceData(deviceData);
+        
+        // Set form values
+        form.setValue("clientName", clientData.name);
+        form.setValue("deviceInfo", `${deviceData.brand} ${deviceData.model}`);
+        
+        // Check if we're editing an existing service
+        const url = new URL(window.location.href);
+        const serviceId = url.searchParams.get('serviceId');
+        
+        if (serviceId) {
+          setIsEditing(true);
+          setCurrentServiceId(serviceId);
+          
           const { data: serviceData, error: serviceError } = await supabase
-            .from('services')
-            .select('*')
+            .from("services")
+            .select("*")
             .eq('id', serviceId)
             .single();
             
           if (serviceError) throw serviceError;
           
-          // Fetch related customer
-          const { data: customerData, error: customerError } = await supabase
-            .from('customers')
-            .select('*')
-            .eq('id', serviceData.customer_id)
-            .single();
-            
-          if (customerError) throw customerError;
-          
-          // Fetch related device
-          const { data: deviceData, error: deviceError } = await supabase
-            .from('devices')
-            .select('*')
-            .eq('id', serviceData.device_id)
-            .single();
-            
-          if (deviceError) throw deviceError;
-          
-          // Set client and device data
-          setClientData(customerData);
-          setDeviceData(deviceData);
-          
-          // Parse the service types (stored as comma-separated string)
-          const serviceTypesList = serviceData.service_type.split(',').map((t: string) => t.trim());
-          setSelectedServices(serviceTypesList);
-          
           // Fill form with service data
-          form.setValue("clientName", customerData.name);
-          form.setValue("deviceInfo", `${deviceData.brand} ${deviceData.model}`);
-          form.setValue("serviceTypes", serviceTypesList);
-          form.setValue("otherService", serviceData.other_service_description || "");
-          form.setValue("technician", serviceData.technician_id || "");
-          form.setValue("price", serviceData.price.toString());
-          form.setValue("estimatedCompletion", new Date(serviceData.estimated_completion_date));
-          form.setValue("warranty", serviceData.warranty_period || "3");
-          form.setValue("status", serviceData.status);
+          form.setValue("serviceType", serviceData.service_type);
+          form.setValue("otherServiceDescription", serviceData.other_service_description || "");
+          form.setValue("technicianId", serviceData.technician_id || "");
+          form.setValue("price", serviceData.price);
+          
+          if (serviceData.estimated_completion_date) {
+            form.setValue("estimatedCompletionDate", new Date(serviceData.estimated_completion_date));
+          }
+          
+          form.setValue("warrantyPeriod", (serviceData.warranty_period || "3") as keyof typeof WarrantyPeriods);
+          form.setValue("status", serviceData.status as keyof typeof StatusTypes);
           form.setValue("observations", serviceData.observations || "");
-        } else if (clientId && deviceId) {
-          // New service, fetch client and device data
-          const { data: clientData, error: clientError } = await supabase
-            .from('customers')
-            .select('*')
-            .eq('id', clientId)
-            .single();
-            
-          if (clientError) throw clientError;
-          
-          const { data: deviceData, error: deviceError } = await supabase
-            .from('devices')
-            .select('*')
-            .eq('id', deviceId)
-            .single();
-            
-          if (deviceError) throw deviceError;
-          
-          setClientData(clientData);
-          setDeviceData(deviceData);
-          
-          // Set form values
-          form.setValue("clientName", clientData.name);
-          form.setValue("deviceInfo", `${deviceData.brand.charAt(0).toUpperCase() + deviceData.brand.slice(1)} ${deviceData.model}`);
-        } else {
-          throw new Error("Dados incompletos");
         }
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
@@ -176,84 +189,55 @@ const ServiceRegistration = () => {
           title: "Erro ao carregar dados",
           description: "Não foi possível carregar os dados necessários.",
         });
-        navigate("/services");
+        navigate("/clients");
       } finally {
         setIsLoading(false);
       }
     };
     
     fetchData();
-  }, [clientId, deviceId, serviceId, form, navigate]);
+  }, [clientId, deviceId, form, navigate]);
   
-  // Handle service type selection
-  const handleServiceTypeChange = (checked: boolean, serviceType: string) => {
-    setSelectedServices(prevSelectedServices => {
-      if (checked) {
-        return [...prevSelectedServices, serviceType];
-      } else {
-        return prevSelectedServices.filter(type => type !== serviceType);
-      }
-    });
-    
-    const selectedServiceTypes = checked 
-      ? [...form.getValues("serviceTypes"), serviceType]
-      : form.getValues("serviceTypes").filter(type => type !== serviceType);
-    
-    form.setValue("serviceTypes", selectedServiceTypes, { shouldValidate: true });
-  };
-  
-  const showOtherServiceField = selectedServices.includes("other");
+  // Show "Other service description" field if "Other" service type is selected
+  const shouldShowOtherService = form.watch("serviceType") === "other";
   
   const onSubmit = async (data: ServiceFormValues) => {
-    if (!clientId || !deviceId) {
-      toast({
-        variant: "destructive",
-        title: "Erro",
-        description: "Dados de cliente ou dispositivo não encontrados.",
-      });
-      return;
-    }
+    if (!clientId || !deviceId) return;
     
     setIsLoading(true);
     
     try {
-      // Calculate warranty date 
-      const estimatedCompletion = data.estimatedCompletion;
-      const warrantyMonths = parseInt(data.warranty);
-      const warrantyDate = new Date(estimatedCompletion);
-      warrantyDate.setMonth(estimatedCompletion.getMonth() + warrantyMonths);
-      
-      // Format price as a number
-      const price = parseFloat(data.price.replace(/[^\d,.-]/g, '').replace(',', '.'));
-      
-      if (isNaN(price)) {
-        throw new Error("Preço inválido");
+      // Calculate warranty until date if warranty period is provided
+      let warrantyUntil = null;
+      if (data.warrantyPeriod) {
+        const months = parseInt(data.warrantyPeriod);
+        const date = new Date();
+        date.setMonth(date.getMonth() + months);
+        warrantyUntil = date.toISOString();
       }
       
-      // Prepare service data for saving
+      // Prepare data for saving
       const serviceData = {
         customer_id: clientId,
         device_id: deviceId,
-        service_type: data.serviceTypes.join(','),
-        other_service_description: data.otherService || null,
-        technician_id: data.technician,
-        price: price,
-        estimated_completion_date: data.estimatedCompletion.toISOString(),
-        warranty_period: data.warranty,
-        warranty_until: warrantyDate.toISOString(),
+        service_type: data.serviceType,
+        other_service_description: data.serviceType === "other" ? data.otherServiceDescription : null,
+        technician_id: data.technicianId || null,
+        price: data.price,
+        estimated_completion_date: data.estimatedCompletionDate ? data.estimatedCompletionDate.toISOString() : null,
+        warranty_period: data.warrantyPeriod || null,
+        warranty_until: warrantyUntil,
         status: data.status,
         observations: data.observations || null,
-        priority: data.serviceTypes.includes('board') ? 'high' : 
-                 data.serviceTypes.includes('battery') || data.serviceTypes.includes('connector') ? 'normal' : 'low',
         updated_at: new Date().toISOString()
       };
       
-      if (isEditing && serviceId) {
+      if (isEditing && currentServiceId) {
         // Update existing service
         const { error } = await supabase
-          .from('services')
+          .from("services")
           .update(serviceData)
-          .eq('id', serviceId);
+          .eq('id', currentServiceId);
           
         if (error) throw error;
         
@@ -264,18 +248,21 @@ const ServiceRegistration = () => {
       } else {
         // Create new service
         const { error } = await supabase
-          .from('services')
-          .insert({ ...serviceData, created_at: new Date().toISOString() });
+          .from("services")
+          .insert({ 
+            ...serviceData,
+            created_at: new Date().toISOString()
+          });
           
         if (error) throw error;
         
         toast({
           title: "Serviço registrado com sucesso",
-          description: "O serviço foi cadastrado com sucesso.",
+          description: "Os dados do serviço foram salvos.",
         });
       }
       
-      // Navigate back to services page
+      // Navigate back to services list
       navigate("/services");
     } catch (error) {
       console.error("Erro ao salvar serviço:", error);
@@ -296,8 +283,8 @@ const ServiceRegistration = () => {
   return (
     <div className="space-y-6">
       <PageHeader 
-        title={isEditing ? "Editar Serviço" : "Cadastro de Serviço"} 
-        description={isEditing ? "Atualize os detalhes do serviço." : "Preencha os detalhes do serviço a ser realizado."}
+        title={isEditing ? "Editar Serviço" : "Registro de Serviço"} 
+        description={isEditing ? "Atualize os detalhes do serviço." : "Preencha os detalhes do serviço a ser executado."}
       >
         <Wrench className="h-6 w-6" />
       </PageHeader>
@@ -314,7 +301,7 @@ const ServiceRegistration = () => {
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="space-y-4">
-                <h2 className="text-xl font-semibold">Informações Básicas</h2>
+                <h2 className="text-xl font-semibold">Informações do Cliente e Dispositivo</h2>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
@@ -324,7 +311,7 @@ const ServiceRegistration = () => {
                       <FormItem>
                         <FormLabel>Cliente</FormLabel>
                         <FormControl>
-                          <Input placeholder="Nome do cliente" {...field} readOnly />
+                          <Input {...field} readOnly />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -338,7 +325,7 @@ const ServiceRegistration = () => {
                       <FormItem>
                         <FormLabel>Dispositivo</FormLabel>
                         <FormControl>
-                          <Input placeholder="Informações do dispositivo" {...field} readOnly />
+                          <Input {...field} readOnly />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -352,70 +339,20 @@ const ServiceRegistration = () => {
                 
                 <FormField
                   control={form.control}
-                  name="serviceTypes"
-                  render={() => (
-                    <FormItem>
-                      <FormLabel>Tipo de Serviço*</FormLabel>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {serviceTypes.map((serviceType) => (
-                          <div key={serviceType.id} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`service-${serviceType.id}`}
-                              checked={selectedServices.includes(serviceType.id)}
-                              onCheckedChange={(checked) => {
-                                handleServiceTypeChange(!!checked, serviceType.id);
-                              }}
-                            />
-                            <label
-                              htmlFor={`service-${serviceType.id}`}
-                              className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                            >
-                              {serviceType.label}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                {showOtherServiceField && (
-                  <FormField
-                    control={form.control}
-                    name="otherService"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Especifique o serviço</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Descreva o serviço..." {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
-                
-                <FormField
-                  control={form.control}
-                  name="technician"
+                  name="serviceType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Técnico Responsável*</FormLabel>
-                      <Select 
-                        onValueChange={field.onChange} 
-                        defaultValue={field.value}
-                        value={field.value}
-                      >
+                      <FormLabel>Tipo de Serviço*</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Selecione o técnico" />
+                            <SelectValue placeholder="Selecione o tipo de serviço" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {TECHNICIANS.map((tech) => (
-                            <SelectItem key={tech} value={tech}>
-                              {tech}
+                          {SERVICE_TYPES.map((serviceType) => (
+                            <SelectItem key={serviceType.value} value={serviceType.value}>
+                              {serviceType.label}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -425,96 +362,125 @@ const ServiceRegistration = () => {
                   )}
                 />
                 
-                <FormField
-                  control={form.control}
-                  name="price"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Preço do Serviço*</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="R$ 0,00" 
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {shouldShowOtherService && (
+                  <FormField
+                    control={form.control}
+                    name="otherServiceDescription"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Descrição do Serviço*</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Descreva o serviço a ser realizado" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
                 
-                <FormField
-                  control={form.control}
-                  name="estimatedCompletion"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Data de Previsão de Conclusão*</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={
-                                "w-full pl-3 text-left font-normal flex justify-between"
-                              }
-                            >
-                              {field.value ? (
-                                format(field.value, "PPP", { locale: pt })
-                              ) : (
-                                <span>Selecione uma data</span>
-                              )}
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={(date) => date && field.onChange(date)}
-                            disabled={(date) => date < new Date()}
-                            initialFocus
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="technicianId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Técnico Responsável</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Nome do técnico" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Preço (R$)*</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            placeholder="Valor do serviço" 
+                            step="0.01" 
+                            {...field}
+                            onChange={e => field.onChange(parseFloat(e.target.value))} 
                           />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
                 
-                <FormField
-                  control={form.control}
-                  name="warranty"
-                  render={({ field }) => (
-                    <FormItem className="space-y-3">
-                      <FormLabel>Garantia do Serviço*</FormLabel>
-                      <FormControl>
-                        <RadioGroup
-                          onValueChange={field.onChange}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="estimatedCompletionDate"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Previsão de Conclusão</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? (
+                                  format(field.value, "PPP", { locale: ptBR })
+                                ) : (
+                                  <span>Selecione uma data</span>
+                                )}
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              initialFocus
+                              locale={ptBR}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="warrantyPeriod"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Período de Garantia (meses)</FormLabel>
+                        <Select 
+                          onValueChange={(value) => field.onChange(value as keyof typeof WarrantyPeriods)} 
                           defaultValue={field.value}
-                          value={field.value}
-                          className="flex space-x-4 flex-wrap"
                         >
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="1" id="warranty-1" />
-                            <label htmlFor="warranty-1">1 mês</label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="3" id="warranty-3" />
-                            <label htmlFor="warranty-3">3 meses</label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="6" id="warranty-6" />
-                            <label htmlFor="warranty-6">6 meses</label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="12" id="warranty-12" />
-                            <label htmlFor="warranty-12">12 meses</label>
-                          </div>
-                        </RadioGroup>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o período de garantia" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="1">1 mês</SelectItem>
+                            <SelectItem value="3">3 meses</SelectItem>
+                            <SelectItem value="6">6 meses</SelectItem>
+                            <SelectItem value="12">12 meses</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
                 
                 <FormField
                   control={form.control}
@@ -523,9 +489,8 @@ const ServiceRegistration = () => {
                     <FormItem>
                       <FormLabel>Status do Serviço*</FormLabel>
                       <Select 
-                        onValueChange={field.onChange} 
+                        onValueChange={(value) => field.onChange(value as keyof typeof StatusTypes)}
                         defaultValue={field.value}
-                        value={field.value}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -533,11 +498,11 @@ const ServiceRegistration = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="pending">Em espera</SelectItem>
-                          <SelectItem value="in_progress">Em andamento</SelectItem>
-                          <SelectItem value="waiting_parts">Aguardando Peças</SelectItem>
-                          <SelectItem value="completed">Concluído</SelectItem>
-                          <SelectItem value="delivered">Entregue</SelectItem>
+                          <SelectItem value={StatusTypes.pending}>Pendente</SelectItem>
+                          <SelectItem value={StatusTypes.in_progress}>Em andamento</SelectItem>
+                          <SelectItem value={StatusTypes.waiting_parts}>Aguardando peças</SelectItem>
+                          <SelectItem value={StatusTypes.completed}>Concluído</SelectItem>
+                          <SelectItem value={StatusTypes.delivered}>Entregue</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -554,7 +519,7 @@ const ServiceRegistration = () => {
                       <FormControl>
                         <Textarea 
                           placeholder="Observações sobre o serviço..." 
-                          className="min-h-24" 
+                          className="min-h-24"
                           {...field} 
                         />
                       </FormControl>
@@ -569,7 +534,7 @@ const ServiceRegistration = () => {
                   Voltar
                 </Button>
                 <Button type="submit" disabled={isLoading}>
-                  {isLoading ? "Carregando..." : isEditing ? "Salvar" : "Cadastrar"}
+                  {isLoading ? "Salvando..." : isEditing ? "Salvar" : "Finalizar Cadastro"}
                 </Button>
               </div>
             </form>

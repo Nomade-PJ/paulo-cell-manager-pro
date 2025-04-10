@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
@@ -28,16 +27,38 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
+// Define device type enums
+const DeviceType = {
+  smartphone: "smartphone",
+  notebook: "notebook",
+  tablet: "tablet",
+} as const;
+
+// Define condition enums
+const DeviceCondition = {
+  good: "good",
+  minor_issues: "minor_issues",
+  critical_issues: "critical_issues",
+} as const;
+
+// Define password type enums
+const PasswordType = {
+  none: "none",
+  pin: "pin",
+  pattern: "pattern",
+  password: "password",
+} as const;
+
 const deviceFormSchema = z.object({
   clientName: z.string(),
-  deviceType: z.enum(["smartphone", "notebook", "tablet"]),
+  deviceType: z.nativeEnum(DeviceType),
   brand: z.string().min(1, { message: "Selecione uma marca" }),
   model: z.string().min(1, { message: "Informe o modelo" }),
   serialNumber: z.string().optional(),
   imei: z.string().optional(),
   color: z.string().optional(),
-  condition: z.enum(["good", "minor_issues", "critical_issues"]),
-  passwordType: z.enum(["none", "pin", "pattern", "password"]),
+  condition: z.nativeEnum(DeviceCondition),
+  passwordType: z.nativeEnum(PasswordType),
   password: z.string().optional(),
   observations: z.string().optional(),
 });
@@ -63,14 +84,14 @@ const DeviceRegistration = () => {
     resolver: zodResolver(deviceFormSchema),
     defaultValues: {
       clientName: "",
-      deviceType: "smartphone",
+      deviceType: DeviceType.smartphone,
       brand: "",
       model: "",
       serialNumber: "",
       imei: "",
       color: "",
-      condition: "good",
-      passwordType: "none",
+      condition: DeviceCondition.good,
+      passwordType: PasswordType.none,
       password: "",
       observations: "",
     },
@@ -92,8 +113,8 @@ const DeviceRegistration = () => {
       try {
         // Fetch client data
         const { data: clientData, error: clientError } = await supabase
-          .from('customers')
-          .select('*')
+          .from("customers")
+          .select("*")
           .eq('id', clientId)
           .single();
           
@@ -106,22 +127,22 @@ const DeviceRegistration = () => {
         if (deviceId) {
           setIsEditing(true);
           const { data: deviceData, error: deviceError } = await supabase
-            .from('devices')
-            .select('*')
+            .from("devices")
+            .select("*")
             .eq('id', deviceId)
             .single();
             
           if (deviceError) throw deviceError;
           
-          // Fill form with device data
-          form.setValue("deviceType", deviceData.device_type || "smartphone");
+          // Fill form with device data - ensure types match the schema
+          form.setValue("deviceType", deviceData.device_type as keyof typeof DeviceType);
           form.setValue("brand", deviceData.brand);
           form.setValue("model", deviceData.model);
           form.setValue("serialNumber", deviceData.serial_number || "");
           form.setValue("imei", deviceData.imei || "");
           form.setValue("color", deviceData.color || "");
-          form.setValue("condition", deviceData.condition);
-          form.setValue("passwordType", deviceData.password_type || "none");
+          form.setValue("condition", deviceData.condition as keyof typeof DeviceCondition);
+          form.setValue("passwordType", deviceData.password_type as keyof typeof PasswordType);
           form.setValue("password", deviceData.password || "");
           form.setValue("observations", deviceData.observations || "");
         }
@@ -171,7 +192,7 @@ const DeviceRegistration = () => {
       if (isEditing && deviceId) {
         // Update existing device
         const { error } = await supabase
-          .from('devices')
+          .from("devices")
           .update(deviceData)
           .eq('id', deviceId);
           
@@ -186,7 +207,7 @@ const DeviceRegistration = () => {
       } else {
         // Create new device
         const { data: insertData, error } = await supabase
-          .from('devices')
+          .from("devices")
           .insert({ ...deviceData, created_at: new Date().toISOString() })
           .select('id')
           .single();
@@ -268,7 +289,7 @@ const DeviceRegistration = () => {
                       <FormItem>
                         <FormLabel>Tipo de Dispositivo*</FormLabel>
                         <Select 
-                          onValueChange={field.onChange} 
+                          onValueChange={field.onChange}
                           defaultValue={field.value}
                           value={field.value}
                         >
@@ -278,9 +299,9 @@ const DeviceRegistration = () => {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="smartphone">Smartphone</SelectItem>
-                            <SelectItem value="notebook">Notebook</SelectItem>
-                            <SelectItem value="tablet">Tablet</SelectItem>
+                            <SelectItem value={DeviceType.smartphone}>Smartphone</SelectItem>
+                            <SelectItem value={DeviceType.notebook}>Notebook</SelectItem>
+                            <SelectItem value={DeviceType.tablet}>Tablet</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -396,9 +417,9 @@ const DeviceRegistration = () => {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="good">Bom estado</SelectItem>
-                            <SelectItem value="minor_issues">Problemas leves</SelectItem>
-                            <SelectItem value="critical_issues">Problemas críticos</SelectItem>
+                            <SelectItem value={DeviceCondition.good}>Bom estado</SelectItem>
+                            <SelectItem value={DeviceCondition.minor_issues}>Problemas leves</SelectItem>
+                            <SelectItem value={DeviceCondition.critical_issues}>Problemas críticos</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -423,10 +444,10 @@ const DeviceRegistration = () => {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="none">Nenhuma</SelectItem>
-                            <SelectItem value="pin">PIN</SelectItem>
-                            <SelectItem value="pattern">Padrão</SelectItem>
-                            <SelectItem value="password">Senha normal</SelectItem>
+                            <SelectItem value={PasswordType.none}>Nenhuma</SelectItem>
+                            <SelectItem value={PasswordType.pin}>PIN</SelectItem>
+                            <SelectItem value={PasswordType.pattern}>Padrão</SelectItem>
+                            <SelectItem value={PasswordType.password}>Senha normal</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />

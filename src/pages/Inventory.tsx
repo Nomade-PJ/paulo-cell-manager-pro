@@ -68,8 +68,8 @@ interface InventoryItem {
   name: string;
   sku: string;
   category: string;
-  custom_category?: string;
-  compatibility?: string;
+  custom_category?: string | null;
+  compatibility?: string | null;
   cost_price: number;
   selling_price: number;
   quantity: number;
@@ -154,13 +154,13 @@ const Inventory = () => {
       setLoading(true);
       
       const { data, error } = await supabase
-        .from('inventory')
-        .select('*')
+        .from("inventory")
+        .select("*")
         .order('name', { ascending: true });
         
       if (error) throw error;
       
-      setInventoryItems(data || []);
+      setInventoryItems(data as InventoryItem[]);
     } catch (error) {
       console.error("Erro ao carregar inventário:", error);
       toast({
@@ -183,7 +183,7 @@ const Inventory = () => {
         
       if (error) throw error;
       
-      setGeneratedSku(data);
+      setGeneratedSku(data as string);
       toast({
         title: "SKU gerado",
         description: `Novo SKU: ${data}`,
@@ -243,7 +243,7 @@ const Inventory = () => {
     
     try {
       const { error } = await supabase
-        .from('inventory')
+        .from("inventory")
         .delete()
         .eq('id', itemToDelete);
         
@@ -280,21 +280,23 @@ const Inventory = () => {
     }
     
     try {
+      const newItem = {
+        name: data.name,
+        sku: generatedSku,
+        category: data.category,
+        custom_category: data.category === 'outro' ? data.customCategory : null,
+        compatibility: data.compatibility || null,
+        cost_price: data.costPrice,
+        selling_price: data.sellingPrice,
+        quantity: data.quantity,
+        minimum_stock: data.minimumStock,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
       const { error } = await supabase
-        .from('inventory')
-        .insert({
-          name: data.name,
-          sku: generatedSku,
-          category: data.category,
-          custom_category: data.category === 'outro' ? data.customCategory : null,
-          compatibility: data.compatibility || null,
-          cost_price: data.costPrice,
-          selling_price: data.sellingPrice,
-          quantity: data.quantity,
-          minimum_stock: data.minimumStock,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
+        .from("inventory")
+        .insert(newItem);
         
       if (error) throw error;
       
@@ -322,19 +324,21 @@ const Inventory = () => {
     if (!currentItem) return;
     
     try {
+      const updatedItem = {
+        name: data.name,
+        category: data.category,
+        custom_category: data.category === 'outro' ? data.customCategory : null,
+        compatibility: data.compatibility || null,
+        cost_price: data.costPrice,
+        selling_price: data.sellingPrice,
+        quantity: data.quantity,
+        minimum_stock: data.minimumStock,
+        updated_at: new Date().toISOString()
+      };
+      
       const { error } = await supabase
-        .from('inventory')
-        .update({
-          name: data.name,
-          category: data.category,
-          custom_category: data.category === 'outro' ? data.customCategory : null,
-          compatibility: data.compatibility || null,
-          cost_price: data.costPrice,
-          selling_price: data.sellingPrice,
-          quantity: data.quantity,
-          minimum_stock: data.minimumStock,
-          updated_at: new Date().toISOString()
-        })
+        .from("inventory")
+        .update(updatedItem)
         .eq('id', currentItem.id);
         
       if (error) throw error;
