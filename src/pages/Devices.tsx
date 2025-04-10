@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +15,7 @@ import { Device, Customer } from "@/types";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabaseClient";
 import { 
   Dialog, 
   DialogContent, 
@@ -55,26 +54,32 @@ const Devices = () => {
       try {
         setLoading(true);
         
-        const { data, error } = await supabase
+        // First, get all devices
+        const { data: devicesData, error: devicesError } = await supabase
           .from('devices')
-          .select(`
-            *,
-            customers!inner (
-              id,
-              name
-            )
-          `)
+          .select('*')
           .order('created_at', { ascending: false });
           
-        if (error) {
-          throw error;
-        }
+        if (devicesError) throw devicesError;
+        
+        // Then, get all customers to map customer names
+        const { data: customersData, error: customersError } = await supabase
+          .from('customers')
+          .select('id, name');
+          
+        if (customersError) throw customersError;
+        
+        // Create a map of customer ID to customer name for quick lookup
+        const customerMap = new Map();
+        customersData.forEach(customer => {
+          customerMap.set(customer.id, customer.name);
+        });
         
         // Transform data to match Device type
-        const transformedData = data.map(item => ({
+        const transformedData = devicesData.map(item => ({
           id: item.id,
           customer_id: item.customer_id,
-          customer_name: item.customers.name,
+          customer_name: customerMap.get(item.customer_id) || "Cliente desconhecido",
           brand: item.brand.charAt(0).toUpperCase() + item.brand.slice(1),
           model: item.model,
           serial_number: item.serial_number || undefined,

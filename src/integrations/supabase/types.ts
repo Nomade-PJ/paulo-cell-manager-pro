@@ -122,8 +122,54 @@ export type Database = {
           },
         ]
       }
+      inventory: {
+        Row: {
+          category: string
+          compatibility: string | null
+          cost_price: number
+          created_at: string
+          custom_category: string | null
+          id: string
+          minimum_stock: number
+          name: string
+          quantity: number
+          selling_price: number
+          sku: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          compatibility?: string | null
+          cost_price: number
+          created_at?: string
+          custom_category?: string | null
+          id?: string
+          minimum_stock?: number
+          name: string
+          quantity?: number
+          selling_price: number
+          sku: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          compatibility?: string | null
+          cost_price?: number
+          created_at?: string
+          custom_category?: string | null
+          id?: string
+          minimum_stock?: number
+          name?: string
+          quantity?: number
+          selling_price?: number
+          sku?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string
           email: string | null
           id: string
@@ -132,6 +178,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           email?: string | null
           id: string
@@ -140,6 +187,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -218,12 +266,53 @@ export type Database = {
           },
         ]
       }
+      settings: {
+        Row: {
+          created_at: string
+          email_notifications: boolean | null
+          sms_notifications: boolean | null
+          theme: string | null
+          updated_at: string
+          user_id: string
+          weekly_summary: boolean | null
+        }
+        Insert: {
+          created_at?: string
+          email_notifications?: boolean | null
+          sms_notifications?: boolean | null
+          theme?: string | null
+          updated_at?: string
+          user_id: string
+          weekly_summary?: boolean | null
+        }
+        Update: {
+          created_at?: string
+          email_notifications?: boolean | null
+          sms_notifications?: boolean | null
+          theme?: string | null
+          updated_at?: string
+          user_id?: string
+          weekly_summary?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_unique_sku: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

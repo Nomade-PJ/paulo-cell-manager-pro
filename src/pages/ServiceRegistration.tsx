@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabaseClient";
 import {
   Form,
   FormControl,
@@ -96,29 +96,44 @@ const ServiceRegistration = () => {
           // We're editing an existing service
           setIsEditing(true);
           
+          // Fetch service data
           const { data: serviceData, error: serviceError } = await supabase
             .from('services')
-            .select(`
-              *,
-              customers:customer_id (*),
-              devices:device_id (*)
-            `)
+            .select('*')
             .eq('id', serviceId)
             .single();
             
           if (serviceError) throw serviceError;
           
+          // Fetch related customer
+          const { data: customerData, error: customerError } = await supabase
+            .from('customers')
+            .select('*')
+            .eq('id', serviceData.customer_id)
+            .single();
+            
+          if (customerError) throw customerError;
+          
+          // Fetch related device
+          const { data: deviceData, error: deviceError } = await supabase
+            .from('devices')
+            .select('*')
+            .eq('id', serviceData.device_id)
+            .single();
+            
+          if (deviceError) throw deviceError;
+          
           // Set client and device data
-          setClientData(serviceData.customers);
-          setDeviceData(serviceData.devices);
+          setClientData(customerData);
+          setDeviceData(deviceData);
           
           // Parse the service types (stored as comma-separated string)
           const serviceTypesList = serviceData.service_type.split(',').map((t: string) => t.trim());
           setSelectedServices(serviceTypesList);
           
           // Fill form with service data
-          form.setValue("clientName", serviceData.customers.name);
-          form.setValue("deviceInfo", `${serviceData.devices.brand} ${serviceData.devices.model}`);
+          form.setValue("clientName", customerData.name);
+          form.setValue("deviceInfo", `${deviceData.brand} ${deviceData.model}`);
           form.setValue("serviceTypes", serviceTypesList);
           form.setValue("otherService", serviceData.other_service_description || "");
           form.setValue("technician", serviceData.technician_id || "");

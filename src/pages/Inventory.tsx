@@ -3,13 +3,6 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { 
   Table, 
   TableBody, 
   TableCell, 
@@ -18,181 +11,418 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Package, FileEdit, AlertTriangle, ShoppingCart } from "lucide-react";
-import { Part } from "@/types";
+import { 
+  Plus, 
+  Search, 
+  FileEdit, 
+  Trash2, 
+  ShoppingCart,
+  PackageOpen
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabaseClient";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter,
+  DialogDescription,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
+
+// Define inventory item type
+interface InventoryItem {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  custom_category?: string;
+  compatibility?: string;
+  cost_price: number;
+  selling_price: number;
+  quantity: number;
+  minimum_stock: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Form schema
+const inventoryFormSchema = z.object({
+  name: z.string().min(2, { message: "Nome deve ter pelo menos 2 caracteres" }),
+  category: z.string().min(1, { message: "Selecione uma categoria" }),
+  customCategory: z.string().optional(),
+  compatibility: z.string().optional(),
+  costPrice: z.number().positive({ message: "Preço de custo deve ser positivo" }),
+  sellingPrice: z.number().positive({ message: "Preço de venda deve ser positivo" }),
+  quantity: z.number().int().min(0, { message: "Quantidade não pode ser negativa" }),
+  minimumStock: z.number().int().min(0, { message: "Estoque mínimo não pode ser negativo" }),
+});
+
+type InventoryFormValues = z.infer<typeof inventoryFormSchema>;
+
+const CATEGORIES = [
+  "bateria",
+  "tela",
+  "cabo",
+  "carregador",
+  "carcaça",
+  "acessório",
+  "outro"
+];
 
 const Inventory = () => {
-  const [parts, setParts] = useState<Part[]>([]);
+  const navigate = useNavigate();
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
-
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [newItemDialogOpen, setNewItemDialogOpen] = useState(false);
+  const [editItemDialogOpen, setEditItemDialogOpen] = useState(false);
+  const [currentItem, setCurrentItem] = useState<InventoryItem | null>(null);
+  const [isGeneratingSku, setIsGeneratingSku] = useState(false);
+  const [generatedSku, setGeneratedSku] = useState<string>("");
+  
+  const form = useForm<InventoryFormValues>({
+    resolver: zodResolver(inventoryFormSchema),
+    defaultValues: {
+      name: "",
+      category: "",
+      customCategory: "",
+      compatibility: "",
+      costPrice: 0,
+      sellingPrice: 0,
+      quantity: 0,
+      minimumStock: 0,
+    },
+  });
+  
+  const editForm = useForm<InventoryFormValues>({
+    resolver: zodResolver(inventoryFormSchema),
+    defaultValues: {
+      name: "",
+      category: "",
+      customCategory: "",
+      compatibility: "",
+      costPrice: 0,
+      sellingPrice: 0,
+      quantity: 0,
+      minimumStock: 0,
+    },
+  });
+  
   useEffect(() => {
-    const fetchParts = async () => {
-      try {
-        // Simulação de dados (em produção seria uma chamada para a API)
-        await new Promise(resolve => setTimeout(resolve, 800));
+    fetchInventory();
+  }, [refreshTrigger]);
+  
+  const fetchInventory = async () => {
+    try {
+      setLoading(true);
+      
+      const { data, error } = await supabase
+        .from('inventory')
+        .select('*')
+        .order('name', { ascending: true });
         
-        const mockParts: Part[] = [
-          {
-            id: "p1",
-            name: "Tela iPhone 11",
-            description: "Display LCD Original",
-            sku: "SCR-IP11-BLK",
-            category: "Telas",
-            quantity: 5,
-            minimum_stock: 3,
-            cost_price: 250,
-            selling_price: 450,
-            supplier_id: "s1",
-            location: "A-01",
-            created_at: "2024-01-10T00:00:00Z",
-            updated_at: "2024-04-05T10:30:00Z"
-          },
-          {
-            id: "p2",
-            name: "Bateria Samsung S21",
-            description: "Bateria Original 4000mAh",
-            sku: "BAT-SS21",
-            category: "Baterias",
-            quantity: 2,
-            minimum_stock: 3,
-            cost_price: 80,
-            selling_price: 150,
-            supplier_id: "s2",
-            location: "B-03",
-            created_at: "2024-02-15T00:00:00Z",
-            updated_at: "2024-04-06T15:20:00Z"
-          },
-          {
-            id: "p3",
-            name: "Conector de Carga iPhone X",
-            description: "Conector Lightning + Microfone",
-            sku: "CON-IPX-CHRG",
-            category: "Conectores",
-            quantity: 8,
-            minimum_stock: 5,
-            cost_price: 40,
-            selling_price: 95,
-            supplier_id: "s1",
-            location: "C-02",
-            created_at: "2024-03-01T00:00:00Z",
-            updated_at: "2024-03-01T00:00:00Z"
-          },
-          {
-            id: "p4",
-            name: "Placa Mãe Motorola G8",
-            description: "Placa Principal 64GB",
-            sku: "MB-MG8-64",
-            category: "Placas",
-            quantity: 1,
-            minimum_stock: 1,
-            cost_price: 180,
-            selling_price: 350,
-            supplier_id: "s3",
-            location: "D-01",
-            created_at: "2024-03-20T00:00:00Z",
-            updated_at: "2024-03-20T00:00:00Z"
-          },
-          {
-            id: "p5",
-            name: "Vidro Traseiro iPhone 12",
-            description: "Tampa Traseira Azul",
-            sku: "BACK-IP12-BLU",
-            category: "Tampas",
-            quantity: 4,
-            minimum_stock: 2,
-            cost_price: 70,
-            selling_price: 160,
-            supplier_id: "s1",
-            location: "A-04",
-            created_at: "2024-04-01T00:00:00Z",
-            updated_at: "2024-04-01T00:00:00Z"
-          }
-        ];
-        
-        setParts(mockParts);
-      } catch (error) {
-        console.error("Erro ao carregar inventário:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchParts();
-  }, []);
-
-  const filteredParts = parts
-    .filter(part => 
-      categoryFilter ? part.category === categoryFilter : true
-    )
-    .filter(part => 
-      part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      part.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (part.description && part.description.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-
-  // Obter categorias únicas para o filtro
-  const categories = Array.from(new Set(parts.map(part => part.category)));
-
-  // Função para renderizar o status do estoque
-  const renderStockStatus = (quantity: number, minimum_stock: number) => {
-    if (quantity <= 0) {
-      return <Badge variant="destructive">Sem Estoque</Badge>;
-    } else if (quantity < minimum_stock) {
-      return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Estoque Baixo</Badge>;
-    } else {
-      return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">OK</Badge>;
+      if (error) throw error;
+      
+      setInventoryItems(data || []);
+    } catch (error) {
+      console.error("Erro ao carregar inventário:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao carregar dados",
+        description: "Não foi possível carregar os itens do inventário.",
+      });
+    } finally {
+      setLoading(false);
     }
   };
-
+  
+  // Generate a new SKU from the backend
+  const generateSku = async () => {
+    try {
+      setIsGeneratingSku(true);
+      
+      const { data, error } = await supabase
+        .rpc('generate_unique_sku');
+        
+      if (error) throw error;
+      
+      setGeneratedSku(data);
+      toast({
+        title: "SKU gerado",
+        description: `Novo SKU: ${data}`,
+      });
+    } catch (error) {
+      console.error("Erro ao gerar SKU:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao gerar SKU",
+        description: "Não foi possível gerar um novo SKU.",
+      });
+      
+      // Generate a random SKU on the client as fallback
+      const randomSku = `PRD-${Math.floor(Math.random() * 100000).toString().padStart(5, '0')}`;
+      setGeneratedSku(randomSku);
+    } finally {
+      setIsGeneratingSku(false);
+    }
+  };
+  
+  // Filter inventory items
+  const filteredItems = inventoryItems.filter(item => {
+    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (item.compatibility && item.compatibility.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const matchesCategory = categoryFilter === "" || item.category === categoryFilter;
+    
+    return matchesSearch && matchesCategory;
+  });
+  
+  // Open edit dialog
+  const handleEdit = (item: InventoryItem) => {
+    setCurrentItem(item);
+    editForm.reset({
+      name: item.name,
+      category: item.category,
+      customCategory: item.custom_category || "",
+      compatibility: item.compatibility || "",
+      costPrice: item.cost_price,
+      sellingPrice: item.selling_price,
+      quantity: item.quantity,
+      minimumStock: item.minimum_stock,
+    });
+    setEditItemDialogOpen(true);
+  };
+  
+  // Open delete dialog
+  const handleDelete = (itemId: string) => {
+    setItemToDelete(itemId);
+    setDeleteDialogOpen(true);
+  };
+  
+  // Confirm delete
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
+    
+    try {
+      const { error } = await supabase
+        .from('inventory')
+        .delete()
+        .eq('id', itemToDelete);
+        
+      if (error) throw error;
+      
+      toast({
+        title: "Item excluído",
+        description: "O item foi excluído com sucesso.",
+      });
+      
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error) {
+      console.error("Erro ao excluir item:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao excluir item",
+        description: "Não foi possível excluir o item do inventário.",
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setItemToDelete(null);
+    }
+  };
+  
+  // Submit new item
+  const onSubmit = async (data: InventoryFormValues) => {
+    if (!generatedSku) {
+      toast({
+        variant: "destructive",
+        title: "SKU não gerado",
+        description: "Por favor, gere um SKU antes de salvar.",
+      });
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('inventory')
+        .insert({
+          name: data.name,
+          sku: generatedSku,
+          category: data.category,
+          custom_category: data.category === 'outro' ? data.customCategory : null,
+          compatibility: data.compatibility || null,
+          cost_price: data.costPrice,
+          selling_price: data.sellingPrice,
+          quantity: data.quantity,
+          minimum_stock: data.minimumStock,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+        
+      if (error) throw error;
+      
+      toast({
+        title: "Item adicionado",
+        description: "O item foi adicionado ao inventário com sucesso.",
+      });
+      
+      setNewItemDialogOpen(false);
+      form.reset();
+      setGeneratedSku("");
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error) {
+      console.error("Erro ao adicionar item:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao adicionar item",
+        description: "Não foi possível adicionar o item ao inventário.",
+      });
+    }
+  };
+  
+  // Submit edited item
+  const onEditSubmit = async (data: InventoryFormValues) => {
+    if (!currentItem) return;
+    
+    try {
+      const { error } = await supabase
+        .from('inventory')
+        .update({
+          name: data.name,
+          category: data.category,
+          custom_category: data.category === 'outro' ? data.customCategory : null,
+          compatibility: data.compatibility || null,
+          cost_price: data.costPrice,
+          selling_price: data.sellingPrice,
+          quantity: data.quantity,
+          minimum_stock: data.minimumStock,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentItem.id);
+        
+      if (error) throw error;
+      
+      toast({
+        title: "Item atualizado",
+        description: "O item foi atualizado com sucesso.",
+      });
+      
+      setEditItemDialogOpen(false);
+      editForm.reset();
+      setCurrentItem(null);
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error) {
+      console.error("Erro ao atualizar item:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao atualizar item",
+        description: "Não foi possível atualizar o item.",
+      });
+    }
+  };
+  
+  // Show stock status badge
+  const renderStockStatusBadge = (quantity: number, minimum: number) => {
+    if (quantity <= 0) {
+      return <Badge className="bg-red-500">Sem estoque</Badge>;
+    } else if (quantity <= minimum) {
+      return <Badge className="bg-yellow-500">Estoque baixo</Badge>;
+    } else {
+      return <Badge className="bg-green-500">Em estoque</Badge>;
+    }
+  };
+  
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Inventário</h1>
-        <Button>
+        <Button onClick={() => {
+          setGeneratedSku("");
+          form.reset();
+          setNewItemDialogOpen(true);
+        }}>
           <Plus className="mr-2 h-4 w-4" />
           Novo Item
         </Button>
       </div>
       
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+        <div className="relative flex-1 w-full">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome, SKU ou descrição..."
-            className="pl-8"
+            placeholder="Buscar por nome, SKU ou compatibilidade..."
+            className="pl-8 w-full"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+        <Select
+          value={categoryFilter}
+          onValueChange={setCategoryFilter}
+        >
           <SelectTrigger className="w-full sm:w-[180px]">
-            <SelectValue placeholder="Categoria" />
+            <SelectValue placeholder="Filtrar por categoria" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="todas">Todas</SelectItem>
-            {categories.map(category => (
+            <SelectItem value="">Todas categorias</SelectItem>
+            {CATEGORIES.map((category) => (
               <SelectItem key={category} value={category}>
-                {category}
+                {category.charAt(0).toUpperCase() + category.slice(1)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
       
-      <div className="rounded-md border">
+      <Card className="p-0 overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>SKU</TableHead>
               <TableHead>Nome</TableHead>
+              <TableHead>SKU</TableHead>
               <TableHead>Categoria</TableHead>
-              <TableHead>Quantidade</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Preço de Venda</TableHead>
-              <TableHead>Localização</TableHead>
+              <TableHead>Compatibilidade</TableHead>
+              <TableHead className="text-right">Preço (R$)</TableHead>
+              <TableHead className="text-right">Estoque</TableHead>
+              <TableHead className="text-right">Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -205,45 +435,41 @@ const Inventory = () => {
                   </div>
                 </TableCell>
               </TableRow>
-            ) : filteredParts.length === 0 ? (
+            ) : filteredItems.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                   Nenhum item encontrado.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredParts.map((part) => (
-                <TableRow key={part.id}>
-                  <TableCell className="font-mono text-sm">{part.sku}</TableCell>
-                  <TableCell className="font-medium">{part.name}</TableCell>
-                  <TableCell>{part.category}</TableCell>
-                  <TableCell className="font-semibold">
-                    {part.quantity}
-                    <span className="text-gray-400 text-sm font-normal ml-1">
-                      / {part.minimum_stock}
-                    </span>
-                  </TableCell>
+              filteredItems.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="font-medium">{item.name}</TableCell>
+                  <TableCell className="font-mono text-xs">{item.sku}</TableCell>
                   <TableCell>
-                    {renderStockStatus(part.quantity, part.minimum_stock)}
+                    {item.category === 'outro' ? item.custom_category : 
+                      item.category.charAt(0).toUpperCase() + item.category.slice(1)}
                   </TableCell>
-                  <TableCell>
-                    {part.selling_price.toLocaleString('pt-BR', {
-                      style: 'currency',
-                      currency: 'BRL'
-                    })}
+                  <TableCell>{item.compatibility || "—"}</TableCell>
+                  <TableCell className="text-right">{item.selling_price.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{item.quantity}</TableCell>
+                  <TableCell className="text-right">
+                    {renderStockStatusBadge(item.quantity, item.minimum_stock)}
                   </TableCell>
-                  <TableCell>{part.location || "—"}</TableCell>
-                  <TableCell className="text-right space-x-2">
-                    {part.quantity < part.minimum_stock && (
-                      <Button variant="ghost" size="icon">
-                        <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                      </Button>
-                    )}
-                    <Button variant="ghost" size="icon">
+                  <TableCell className="text-right space-x-1">
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => handleEdit(item)}
+                    >
                       <FileEdit className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon">
-                      <ShoppingCart className="h-4 w-4 text-primary" />
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => handleDelete(item.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -251,7 +477,378 @@ const Inventory = () => {
             )}
           </TableBody>
         </Table>
-      </div>
+      </Card>
+
+      {/* New Item Dialog */}
+      <Dialog open={newItemDialogOpen} onOpenChange={setNewItemDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Adicionar Novo Item</DialogTitle>
+            <DialogDescription>
+              Preencha as informações do item para adicionar ao inventário.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
+              <div className="space-y-4">
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <Label>SKU</Label>
+                    <div className="flex rounded-md overflow-hidden">
+                      <Input 
+                        value={generatedSku} 
+                        readOnly 
+                        className="rounded-r-none font-mono"
+                      />
+                      <Button 
+                        type="button" 
+                        className="rounded-l-none"
+                        onClick={generateSku}
+                        disabled={isGeneratingSku}
+                      >
+                        Gerar
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nome do Produto*</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Nome do produto" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="category"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Categoria*</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione uma categoria" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {CATEGORIES.map((category) => (
+                              <SelectItem key={category} value={category}>
+                                {category.charAt(0).toUpperCase() + category.slice(1)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  {form.watch("category") === "outro" && (
+                    <FormField
+                      control={form.control}
+                      name="customCategory"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Categoria Personalizada*</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Nome da categoria" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </div>
+                
+                <FormField
+                  control={form.control}
+                  name="compatibility"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Compatibilidade</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: iPhone 12, Samsung Galaxy S20" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="costPrice"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Preço de Custo (R$)*</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.01" {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="sellingPrice"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Preço de Venda (R$)*</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.01" {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="quantity"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Quantidade em Estoque*</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} onChange={(e) => field.onChange(parseInt(e.target.value) || 0)} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="minimumStock"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Estoque Mínimo*</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} onChange={(e) => field.onChange(parseInt(e.target.value) || 0)} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+              
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setNewItemDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit">
+                  Adicionar Item
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Edit Item Dialog */}
+      <Dialog open={editItemDialogOpen} onOpenChange={setEditItemDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Editar Item</DialogTitle>
+            <DialogDescription>
+              Atualize as informações do item no inventário.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {currentItem && (
+            <Form {...editForm}>
+              <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4 pt-4">
+                <div className="space-y-4">
+                  <div>
+                    <Label>SKU</Label>
+                    <Input value={currentItem.sku} readOnly className="font-mono" />
+                  </div>
+                  
+                  <FormField
+                    control={editForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nome do Produto*</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Nome do produto" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="category"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Categoria*</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione uma categoria" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {CATEGORIES.map((category) => (
+                                <SelectItem key={category} value={category}>
+                                  {category.charAt(0).toUpperCase() + category.slice(1)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    {editForm.watch("category") === "outro" && (
+                      <FormField
+                        control={editForm.control}
+                        name="customCategory"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Categoria Personalizada*</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Nome da categoria" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                  </div>
+                  
+                  <FormField
+                    control={editForm.control}
+                    name="compatibility"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Compatibilidade</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex: iPhone 12, Samsung Galaxy S20" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="costPrice"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Preço de Custo (R$)*</FormLabel>
+                          <FormControl>
+                            <Input type="number" step="0.01" {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={editForm.control}
+                      name="sellingPrice"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Preço de Venda (R$)*</FormLabel>
+                          <FormControl>
+                            <Input type="number" step="0.01" {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="quantity"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Quantidade em Estoque*</FormLabel>
+                          <FormControl>
+                            <Input type="number" {...field} onChange={(e) => field.onChange(parseInt(e.target.value) || 0)} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={editForm.control}
+                      name="minimumStock"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Estoque Mínimo*</FormLabel>
+                          <FormControl>
+                            <Input type="number" {...field} onChange={(e) => field.onChange(parseInt(e.target.value) || 0)} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+                
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setEditItemDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit">
+                    Salvar Alterações
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este item? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

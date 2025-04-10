@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { z } from "zod";
@@ -118,7 +117,6 @@ const UserRegistration = () => {
     }
   };
   
-  // Handle CEP lookup
   const handleCepLookup = async (cep: string) => {
     if (!cep || cep.length < 8) return;
     

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,27 +59,31 @@ const Services = () => {
       try {
         setLoading(true);
         
-        const { data, error } = await supabase
+        const { data: servicesData, error: servicesError } = await supabase
           .from('services')
-          .select(`
-            *,
-            customers:customer_id (
-              name
-            ),
-            devices:device_id (
-              brand,
-              model
-            )
-          `)
+          .select('*')
           .order('created_at', { ascending: false });
           
-        if (error) throw error;
+        if (servicesError) throw servicesError;
         
-        // Transform data to match Service type
-        const transformedData = data.map(item => {
-          const serviceTypes = item.service_type.split(',').map(s => s.trim());
+        const { data: customersData, error: customersError } = await supabase
+          .from('customers')
+          .select('id, name');
           
-          // Convert service types to a readable format
+        if (customersError) throw customersError;
+        
+        const { data: devicesData, error: devicesError } = await supabase
+          .from('devices')
+          .select('id, brand, model');
+          
+        if (devicesError) throw devicesError;
+        
+        const customerMap = new Map(customersData.map((c: any) => [c.id, c.name]));
+        const deviceMap = new Map(devicesData.map((d: any) => [d.id, `${d.brand} ${d.model}`]));
+        
+        const transformedData = servicesData.map(item => {
+          const serviceTypes = item.service_type.split(',').map((s: string) => s.trim());
+          
           const serviceTypeLabels: Record<string, string> = {
             "battery": "Substituição de Bateria",
             "board": "Reparo de Placa",
@@ -97,10 +100,10 @@ const Services = () => {
           return {
             id: item.id,
             device_id: item.device_id,
-            device_info: `${item.devices.brand} ${item.devices.model}`,
+            device_info: deviceMap.get(item.device_id) || "Dispositivo desconhecido",
             customer_id: item.customer_id,
-            customer_name: item.customers.name,
-            status: item.status,
+            customer_name: customerMap.get(item.customer_id) || "Cliente desconhecido",
+            status: item.status as "pending" | "in_progress" | "waiting_parts" | "completed" | "delivered" | "canceled",
             service_type: item.service_type,
             issue_description,
             diagnosis: item.diagnosis,
@@ -145,7 +148,6 @@ const Services = () => {
       service.device_info.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-  // Função para renderizar o badge de status
   const renderStatusBadge = (status: Service["status"]) => {
     const statusMap = {
       pending: { label: "Pendente", class: "bg-yellow-500" },
@@ -164,7 +166,6 @@ const Services = () => {
     );
   };
 
-  // Função para renderizar o badge de prioridade
   const renderPriorityBadge = (priority: Service["priority"]) => {
     const priorityMap = {
       low: { label: "Baixa", class: "bg-gray-400" },
@@ -180,7 +181,7 @@ const Services = () => {
       </Badge>
     );
   };
-  
+
   const handleNewService = async () => {
     try {
       const { data: customersData, error: customersError } = await supabase
@@ -219,7 +220,6 @@ const Services = () => {
         return;
       }
       
-      // Navigate to service registration with client ID and device ID
       navigate(`/service-registration/${customersData[0].id}/${devicesData[0].id}`);
     } catch (error) {
       console.error("Erro ao verificar dados:", error);
@@ -231,11 +231,11 @@ const Services = () => {
       navigate("/user-registration");
     }
   };
-  
+
   const handleEditService = (serviceId: string) => {
     navigate(`/service-registration/${serviceId}`);
   };
-  
+
   const handleStartService = async (service: Service) => {
     if (service.status === 'in_progress') {
       toast({
@@ -267,17 +267,16 @@ const Services = () => {
       });
     }
   };
-  
+
   const handleCompleteService = (service: Service) => {
     setSelectedService(service);
     setStatusUpdateDialog(true);
   };
-  
+
   const confirmCompleteService = async () => {
     if (!selectedService) return;
     
     try {
-      // Calculate warranty date based on warranty period (1, 3, 6 or 12 months)
       const currentDate = new Date();
       const warrantyMonths = parseInt(selectedService.warranty_period || '3');
       const warrantyDate = new Date(currentDate);
@@ -313,12 +312,12 @@ const Services = () => {
       setSelectedService(null);
     }
   };
-  
+
   const handleDeleteService = (serviceId: string) => {
     setServiceToDelete(serviceId);
     setDeleteDialogOpen(true);
   };
-  
+
   const confirmDeleteService = async () => {
     if (!serviceToDelete) return;
     
@@ -348,7 +347,7 @@ const Services = () => {
       setServiceToDelete(null);
     }
   };
-  
+
   const handleViewDetails = (service: Service) => {
     setSelectedService(service);
     setDetailsDialogOpen(true);
@@ -489,7 +488,6 @@ const Services = () => {
         </Table>
       </div>
       
-      {/* Service Details Dialog */}
       <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -579,7 +577,6 @@ const Services = () => {
         </DialogContent>
       </Dialog>
       
-      {/* Confirm Complete Service Dialog */}
       <AlertDialog open={statusUpdateDialog} onOpenChange={setStatusUpdateDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -600,7 +597,6 @@ const Services = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Confirm Delete Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

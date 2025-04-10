@@ -15,14 +15,7 @@ import { Customer } from "@/types";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/components/ui/use-toast";
 import { formatCPF, formatCNPJ } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogFooter 
-} from "@/components/ui/dialog";
+import { supabase } from "@/integrations/supabaseClient";
 import { 
   AlertDialog,
   AlertDialogAction,
