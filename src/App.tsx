@@ -41,6 +41,7 @@ const App = () => (
             <Route path="/" element={<Layout />}>
               <Route index element={<Dashboard />} />
               <Route path="user-registration" element={<UserRegistration />} />
+              <Route path="user-registration/:id" element={<UserRegistration />} />
               <Route path="device-registration/:clientId" element={<DeviceRegistration />} />
               <Route path="service-registration/:clientId/:deviceId" element={<ServiceRegistration />} />
               <Route path="clients" element={<Clients />} />

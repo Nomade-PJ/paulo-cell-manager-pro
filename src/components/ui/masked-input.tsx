@@ -17,7 +17,7 @@ const MaskedInput = React.forwardRef<HTMLInputElement, MaskedInputProps>(
         onChange={onChange}
         {...props}
       >
-        {(inputProps: React.InputHTMLAttributes<HTMLInputElement>) => (
+        {(inputProps: any) => (
           <Input
             ref={ref}
             className={cn(className)}
