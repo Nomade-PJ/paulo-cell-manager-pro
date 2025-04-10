@@ -1,9 +1,10 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Input } from '@/components/ui/input';
+import { MaskedInput } from '@/components/ui/masked-input';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -29,10 +30,9 @@ import {
 } from '@/components/ui/select';
 import { toast } from '@/components/ui/use-toast';
 import { PageHeader } from '@/components/PageHeader';
-import { User, ArrowRight, Smartphone } from 'lucide-react';
+import { User, ArrowRight } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabaseClient';
-import InputMask from 'react-input-mask';
 
 // Define document type enum
 const DocumentTypes = {
@@ -307,8 +307,7 @@ export default function UserRegistration() {
                       <FormItem>
                         <FormLabel>Número do Documento*</FormLabel>
                         <FormControl>
-                          <Input 
-                            as={InputMask}
+                          <MaskedInput
                             mask={watchDocumentType === DocumentTypes.cpf ? '999.999.999-99' : '99.999.999/9999-99'}
                             placeholder={watchDocumentType === DocumentTypes.cpf ? '000.000.000-00' : '00.000.000/0000-00'}
                             {...field}
@@ -328,8 +327,7 @@ export default function UserRegistration() {
                       <FormItem>
                         <FormLabel>Telefone*</FormLabel>
                         <FormControl>
-                          <Input
-                            as={InputMask}
+                          <MaskedInput
                             mask="(99) 99999-9999"
                             placeholder="(00) 00000-0000"
                             {...field}
@@ -367,8 +365,7 @@ export default function UserRegistration() {
                       <FormItem>
                         <FormLabel>CEP*</FormLabel>
                         <FormControl>
-                          <Input
-                            as={InputMask}
+                          <MaskedInput
                             mask="99999-999"
                             placeholder="00000-000"
                             {...field}
