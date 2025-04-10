@@ -10,10 +10,14 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Plus, Search, FileEdit, Trash2, Phone } from "lucide-react";
+import { Plus, Search, FileEdit, Trash2, Phone, UserPlus } from "lucide-react";
 import { Customer } from "@/types";
+import { useNavigate } from "react-router-dom";
+import { toast } from "@/components/ui/use-toast";
+import { formatCPF, formatCNPJ } from "@/lib/utils";
 
 const Clients = () => {
+  const navigate = useNavigate();
   const [clients, setClients] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -70,6 +74,34 @@ const Clients = () => {
           }
         ];
         
+        // Check if there's registered client data in localStorage
+        const storedClientData = localStorage.getItem("registrationClient");
+        if (storedClientData) {
+          const clientData = JSON.parse(storedClientData);
+          
+          // Check if client already exists by ID
+          const existingClientIndex = mockClients.findIndex(client => client.id === clientData.id);
+          
+          const newClient: Customer = {
+            id: clientData.id,
+            name: clientData.name,
+            email: clientData.email || "",
+            phone: clientData.phone || "",
+            address: clientData.street && clientData.number ? 
+              `${clientData.street}, ${clientData.number}, ${clientData.neighborhood || ""}, ${clientData.city || ""}-${clientData.state || ""}` : "",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          
+          if (existingClientIndex >= 0) {
+            // Replace existing client
+            mockClients[existingClientIndex] = newClient;
+          } else {
+            // Add new client
+            mockClients.unshift(newClient);
+          }
+        }
+        
         setClients(mockClients);
       } catch (error) {
         console.error("Erro ao carregar clientes:", error);
@@ -86,13 +118,42 @@ const Clients = () => {
     client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.phone.includes(searchTerm)
   );
+  
+  const handleNewClient = () => {
+    navigate("/user-registration");
+  };
+  
+  const handleEditClient = (clientId: string) => {
+    // In a real app, this would navigate to edit form with client ID
+    toast({
+      title: "Editar Cliente",
+      description: `Função para editar o cliente ${clientId} será implementada em breve.`,
+    });
+  };
+  
+  const handleDeleteClient = (clientId: string) => {
+    // In a real app, this would confirm deletion and then remove from database
+    toast({
+      title: "Excluir Cliente",
+      description: `Função para excluir o cliente ${clientId} será implementada em breve.`,
+      variant: "destructive",
+    });
+  };
+  
+  const handleCallClient = (phone: string) => {
+    // In a real app, this might use tel: protocol or show more contact options
+    toast({
+      title: "Ligar para Cliente",
+      description: `Chamando ${phone}`,
+    });
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Clientes</h1>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
+        <Button onClick={handleNewClient}>
+          <UserPlus className="mr-2 h-4 w-4" />
           Novo Cliente
         </Button>
       </div>
@@ -147,13 +208,25 @@ const Clients = () => {
                     {new Date(client.created_at).toLocaleDateString('pt-BR')}
                   </TableCell>
                   <TableCell className="text-right space-x-2">
-                    <Button variant="ghost" size="icon">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => handleCallClient(client.phone)}
+                    >
                       <Phone className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon">
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => handleEditClient(client.id)}
+                    >
                       <FileEdit className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon">
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => handleDeleteClient(client.id)}
+                    >
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
                   </TableCell>

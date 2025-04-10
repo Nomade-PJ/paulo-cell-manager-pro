@@ -6,6 +6,8 @@ export interface Customer {
   email: string;
   phone: string;
   address?: string;
+  document_type?: 'cpf' | 'cnpj';
+  document?: string;
   created_at: string;
   updated_at: string;
 }
@@ -18,8 +20,11 @@ export interface Device {
   model: string;
   serial_number?: string;
   imei?: string;
+  color?: string;
   condition: string;
   accessories?: string[];
+  password_type?: 'none' | 'pin' | 'pattern' | 'password';
+  password?: string;
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -31,6 +36,7 @@ export interface Service {
   device_id: string;
   customer_id: string;
   status: "pending" | "in_progress" | "waiting_parts" | "completed" | "delivered" | "canceled";
+  service_type?: string;
   issue_description: string;
   diagnosis?: string;
   solution?: string;

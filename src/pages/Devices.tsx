@@ -14,8 +14,11 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Search, FileEdit, Smartphone, HardDrive } from "lucide-react";
 import { Device } from "@/types";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useNavigate } from "react-router-dom";
+import { toast } from "@/components/ui/use-toast";
 
 const Devices = () => {
+  const navigate = useNavigate();
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -91,6 +94,52 @@ const Devices = () => {
           }
         ];
         
+        // Check if there's registered device data in localStorage
+        const storedDeviceData = localStorage.getItem("registrationDevice");
+        if (storedDeviceData) {
+          const deviceData = JSON.parse(storedDeviceData);
+          
+          // Get brand and condition mappings
+          const brandMap: Record<string, string> = {
+            "apple": "Apple",
+            "samsung": "Samsung",
+            "xiaomi": "Xiaomi",
+            "motorola": "Motorola",
+            "lg": "LG",
+            "outros": "Outros"
+          };
+          
+          const conditionMap: Record<string, string> = {
+            "good": "Excelente", 
+            "minor_issues": "Regular", 
+            "critical_issues": "Ruim"
+          };
+          
+          const newDevice: Device = {
+            id: deviceData.id,
+            customer_id: deviceData.clientId,
+            brand: brandMap[deviceData.brand] || deviceData.brand,
+            model: deviceData.model,
+            serial_number: deviceData.serialNumber || "",
+            imei: deviceData.imei || "",
+            condition: conditionMap[deviceData.condition] || "Bom",
+            notes: deviceData.observations || "",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          
+          // Check if device already exists by ID
+          const existingDeviceIndex = mockDevices.findIndex(device => device.id === deviceData.id);
+          
+          if (existingDeviceIndex >= 0) {
+            // Replace existing device
+            mockDevices[existingDeviceIndex] = newDevice;
+          } else {
+            // Add new device
+            mockDevices.unshift(newDevice);
+          }
+        }
+        
         setDevices(mockDevices);
       } catch (error) {
         console.error("Erro ao carregar dispositivos:", error);
@@ -125,6 +174,43 @@ const Devices = () => {
     );
   };
 
+  const handleNewDevice = () => {
+    // Get client id from localStorage if available
+    const storedClientData = localStorage.getItem("registrationClient");
+    if (storedClientData) {
+      const clientData = JSON.parse(storedClientData);
+      navigate(`/device-registration/${clientData.id}`);
+    } else {
+      toast({
+        title: "Cliente não encontrado",
+        description: "Por favor, cadastre um cliente primeiro.",
+        variant: "destructive",
+      });
+      navigate("/user-registration");
+    }
+  };
+  
+  const handleEditDevice = (deviceId: string) => {
+    toast({
+      title: "Editar Dispositivo",
+      description: `Função para editar o dispositivo ${deviceId} será implementada em breve.`,
+    });
+  };
+  
+  const handleViewDevice = (deviceId: string) => {
+    toast({
+      title: "Ver Detalhes",
+      description: `Visualização detalhada do dispositivo ${deviceId} será implementada em breve.`,
+    });
+  };
+  
+  const handleViewDeviceData = (deviceId: string) => {
+    toast({
+      title: "Dados do Dispositivo",
+      description: `Dados técnicos do dispositivo ${deviceId} será implementada em breve.`,
+    });
+  };
+
   // Cards para visualização mobile
   const MobileDeviceCard = ({ device }: { device: Device }) => (
     <div className="bg-white p-4 rounded-lg shadow mb-4 border border-gray-200">
@@ -150,15 +236,27 @@ const Devices = () => {
       </div>
       
       <div className="flex justify-end space-x-2">
-        <Button variant="ghost" size="sm">
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={() => handleViewDevice(device.id)}
+        >
           <Smartphone className="h-4 w-4 mr-1" />
           <span className="text-xs">Ver</span>
         </Button>
-        <Button variant="ghost" size="sm">
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={() => handleEditDevice(device.id)}
+        >
           <FileEdit className="h-4 w-4 mr-1" />
           <span className="text-xs">Editar</span>
         </Button>
-        <Button variant="ghost" size="sm">
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={() => handleViewDeviceData(device.id)}
+        >
           <HardDrive className="h-4 w-4 mr-1 text-blue-500" />
           <span className="text-xs">Dados</span>
         </Button>
@@ -170,7 +268,7 @@ const Devices = () => {
     <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-xl sm:text-2xl font-bold">Dispositivos</h1>
-        <Button className="w-full sm:w-auto">
+        <Button className="w-full sm:w-auto" onClick={handleNewDevice}>
           <Plus className="mr-2 h-4 w-4" />
           Novo Dispositivo
         </Button>
@@ -247,13 +345,25 @@ const Devices = () => {
                         : "—"}
                     </TableCell>
                     <TableCell className="text-right space-x-2">
-                      <Button variant="ghost" size="icon">
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => handleViewDevice(device.id)}
+                      >
                         <Smartphone className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon">
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => handleEditDevice(device.id)}
+                      >
                         <FileEdit className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon">
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => handleViewDeviceData(device.id)}
+                      >
                         <HardDrive className="h-4 w-4 text-blue-500" />
                       </Button>
                     </TableCell>
