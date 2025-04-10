@@ -310,7 +310,10 @@ export default function UserRegistration() {
                           <MaskedInput
                             mask={watchDocumentType === DocumentTypes.cpf ? '999.999.999-99' : '99.999.999/9999-99'}
                             placeholder={watchDocumentType === DocumentTypes.cpf ? '000.000.000-00' : '00.000.000/0000-00'}
-                            {...field}
+                            value={field.value}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            name={field.name}
                           />
                         </FormControl>
                         <FormMessage />
@@ -330,7 +333,10 @@ export default function UserRegistration() {
                           <MaskedInput
                             mask="(99) 99999-9999"
                             placeholder="(00) 00000-0000"
-                            {...field}
+                            value={field.value}
+                            onChange={field.onChange}
+                            onBlur={field.onBlur}
+                            name={field.name}
                           />
                         </FormControl>
                         <FormMessage />
@@ -368,11 +374,13 @@ export default function UserRegistration() {
                           <MaskedInput
                             mask="99999-999"
                             placeholder="00000-000"
-                            {...field}
+                            value={field.value}
                             onChange={(e) => {
                               field.onChange(e);
                               handleCepChange(e.target.value);
                             }}
+                            onBlur={field.onBlur}
+                            name={field.name}
                           />
                         </FormControl>
                         <FormMessage />
