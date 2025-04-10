@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -305,7 +304,7 @@ const Services = () => {
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todos</SelectItem>
+            <SelectItem value="todos">Todos</SelectItem>
             <SelectItem value="pending">Pendente</SelectItem>
             <SelectItem value="in_progress">Em Andamento</SelectItem>
             <SelectItem value="waiting_parts">Aguardando Peças</SelectItem>
