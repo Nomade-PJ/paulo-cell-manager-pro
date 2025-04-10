@@ -4,7 +4,7 @@ import InputMask from "react-input-mask";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 
-interface MaskedInputProps extends Omit<React.ComponentPropsWithoutRef<typeof Input>, "onChange"> {
+interface MaskedInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   mask: string;
   onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
@@ -15,12 +15,12 @@ const MaskedInput = React.forwardRef<HTMLInputElement, MaskedInputProps>(
       <InputMask
         mask={mask}
         onChange={onChange}
-        className={cn(className)}
         {...props}
       >
         {(inputProps: React.InputHTMLAttributes<HTMLInputElement>) => (
           <Input
             ref={ref}
+            className={cn(className)}
             {...inputProps}
           />
         )}
