@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,7 +61,6 @@ import {
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 
-// Define inventory item type
 interface InventoryItem {
   id: string;
   name: string;
@@ -78,7 +76,6 @@ interface InventoryItem {
   updated_at: string;
 }
 
-// Form schema
 const inventoryFormSchema = z.object({
   name: z.string().min(2, { message: "Nome deve ter pelo menos 2 caracteres" }),
   category: z.string().min(1, { message: "Selecione uma categoria" }),
@@ -107,7 +104,7 @@ const Inventory = () => {
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -173,7 +170,6 @@ const Inventory = () => {
     }
   };
   
-  // Generate a new SKU from the backend
   const generateSku = async () => {
     try {
       setIsGeneratingSku(true);
@@ -196,7 +192,6 @@ const Inventory = () => {
         description: "Não foi possível gerar um novo SKU.",
       });
       
-      // Generate a random SKU on the client as fallback
       const randomSku = `PRD-${Math.floor(Math.random() * 100000).toString().padStart(5, '0')}`;
       setGeneratedSku(randomSku);
     } finally {
@@ -204,18 +199,16 @@ const Inventory = () => {
     }
   };
   
-  // Filter inventory items
   const filteredItems = inventoryItems.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         (item.compatibility && item.compatibility.toLowerCase().includes(searchTerm.toLowerCase()));
     
-    const matchesCategory = categoryFilter === "" || item.category === categoryFilter;
+    const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
     
     return matchesSearch && matchesCategory;
   });
   
-  // Open edit dialog
   const handleEdit = (item: InventoryItem) => {
     setCurrentItem(item);
     editForm.reset({
@@ -231,13 +224,11 @@ const Inventory = () => {
     setEditItemDialogOpen(true);
   };
   
-  // Open delete dialog
   const handleDelete = (itemId: string) => {
     setItemToDelete(itemId);
     setDeleteDialogOpen(true);
   };
   
-  // Confirm delete
   const confirmDelete = async () => {
     if (!itemToDelete) return;
     
@@ -268,7 +259,6 @@ const Inventory = () => {
     }
   };
   
-  // Submit new item
   const onSubmit = async (data: InventoryFormValues) => {
     if (!generatedSku) {
       toast({
@@ -319,7 +309,6 @@ const Inventory = () => {
     }
   };
   
-  // Submit edited item
   const onEditSubmit = async (data: InventoryFormValues) => {
     if (!currentItem) return;
     
@@ -362,7 +351,6 @@ const Inventory = () => {
     }
   };
   
-  // Show stock status badge
   const renderStockStatusBadge = (quantity: number, minimum: number) => {
     if (quantity <= 0) {
       return <Badge className="bg-red-500">Sem estoque</Badge>;
@@ -406,7 +394,7 @@ const Inventory = () => {
             <SelectValue placeholder="Filtrar por categoria" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todas categorias</SelectItem>
+            <SelectItem value="all">Todas categorias</SelectItem>
             {CATEGORIES.map((category) => (
               <SelectItem key={category} value={category}>
                 {category.charAt(0).toUpperCase() + category.slice(1)}
@@ -483,7 +471,6 @@ const Inventory = () => {
         </Table>
       </Card>
 
-      {/* New Item Dialog */}
       <Dialog open={newItemDialogOpen} onOpenChange={setNewItemDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -665,7 +652,6 @@ const Inventory = () => {
         </DialogContent>
       </Dialog>
       
-      {/* Edit Item Dialog */}
       <Dialog open={editItemDialogOpen} onOpenChange={setEditItemDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -833,7 +819,6 @@ const Inventory = () => {
         </DialogContent>
       </Dialog>
       
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
