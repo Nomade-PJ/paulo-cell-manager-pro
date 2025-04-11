@@ -1,199 +1,156 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { Users, Smartphone, Clock, CheckCircle, AlertCircle, DollarSign } from "lucide-react";
-import { DashboardStats, Service, Part } from "@/types";
+import { Progress } from "@/components/ui/progress";
+import { ClientCount, DeviceCount, CompletedServices, Revenue } from "@/types";
 import { supabase } from "@/integrations/supabaseClient";
-import { useToast } from "@/components/ui/use-toast";
-import { addDays, format, subDays } from "date-fns";
+import { Users, Smartphone, CheckCircle, DollarSign, TrendingUp, Clock } from "lucide-react";
 
-const Dashboard = () => {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+export default function Dashboard() {
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
+  const [clientCount, setClientCount] = useState<ClientCount>({ total: 0, newThisMonth: 0 });
+  const [deviceCount, setDeviceCount] = useState<DeviceCount>({ total: 0, needsService: 0 });
+  const [services, setServices] = useState<CompletedServices>({ total: 0, completed: 0, pending: 0, percentage: 0 });
+  const [revenue, setRevenue] = useState<Revenue>({ total: 0, thisMonth: 0, lastMonth: 0, percentChange: 0 });
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
         
-        // Fetch total services
-        const { count: totalServices, error: servicesError } = await supabase
-          .from('services')
-          .select('*', { count: 'exact', head: true });
-        
-        if (servicesError) throw servicesError;
-        
-        // Fetch total clients
-        const { count: totalClients, error: clientsError } = await supabase
+        // Fetch client data
+        const { count: totalClients } = await supabase
           .from('customers')
           .select('*', { count: 'exact', head: true });
         
-        if (clientsError) throw clientsError;
+        // Get current date info for month filtering
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+        const firstDayOfMonth = new Date(currentYear, currentMonth, 1).toISOString();
         
-        // Fetch today's revenue
-        const today = new Date();
-        const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
-        const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59).toISOString();
-        
-        const { data: todayServices, error: todayServicesError } = await supabase
-          .from('services')
-          .select('price')
-          .gte('created_at', startOfDay)
-          .lte('created_at', endOfDay);
-        
-        if (todayServicesError) throw todayServicesError;
-        
-        const todayRevenue = todayServices?.reduce((sum, service) => sum + (parseFloat(service.price) || 0), 0) || 0;
-        
-        // Fetch pending services
-        const { count: pendingServices, error: pendingError } = await supabase
-          .from('services')
+        // Count new clients this month
+        const { count: newClientsThisMonth } = await supabase
+          .from('customers')
           .select('*', { count: 'exact', head: true })
-          .in('status', ['pending', 'in_progress', 'waiting_parts']);
+          .gte('created_at', firstDayOfMonth);
         
-        if (pendingError) throw pendingError;
-        
-        // Fetch completed services
-        const { count: completedServices, error: completedError } = await supabase
+        // Fetch device data
+        const { count: totalDevices } = await supabase
+          .from('devices')
+          .select('*', { count: 'exact', head: true });
+          
+        // Get all service data
+        const { data: servicesData, error: servicesError } = await supabase
           .from('services')
-          .select('*', { count: 'exact', head: true })
-          .in('status', ['completed', 'delivered']);
+          .select('*');
+          
+        if (servicesError) throw servicesError;
         
-        if (completedError) throw completedError;
+        // Calculate service metrics
+        const totalServices = servicesData ? servicesData.length : 0;
+        const completedServices = servicesData ? servicesData.filter(service => service.status === 'completed').length : 0;
+        const pendingServices = servicesData ? servicesData.filter(service => service.status === 'pending').length : 0;
+        const servicesPercentage = totalServices > 0 ? Math.round((completedServices / totalServices) * 100) : 0;
         
-        // Fetch recent services
-        const { data: recentServices, error: recentError } = await supabase
-          .from('services')
-          .select(`
-            *,
-            customers!services_customer_id_fkey(name),
-            devices!services_device_id_fkey(brand, model)
-          `)
-          .order('created_at', { ascending: false })
-          .limit(3);
+        // Calculate revenue metrics
+        let totalRevenue = 0;
+        let thisMonthRevenue = 0;
+        let lastMonthRevenue = 0;
         
-        if (recentError) throw recentError;
-
-        // Process recent services to match our type
-        const processedRecentServices: Service[] = recentServices.map((service: any) => ({
-          ...service,
-          customer_name: service.customers?.name,
-          device_info: `${service.devices?.brand} ${service.devices?.model}`
-        }));
+        const lastMonthStart = new Date(currentYear, currentMonth - 1, 1).toISOString();
+        const twoMonthsAgoStart = new Date(currentYear, currentMonth - 2, 1).toISOString();
         
-        // Fetch low stock items
-        const { data: lowStockItems, error: lowStockError } = await supabase
-          .from('inventory')
-          .select('*')
-          .lt('quantity', supabase.raw('minimum_stock'))
-          .limit(5);
-        
-        if (lowStockError) throw lowStockError;
-        
-        // Generate revenue data for the last 7 days
-        const last7Days = [];
-        for (let i = 6; i >= 0; i--) {
-          const date = subDays(today, i);
-          const formattedDate = format(date, 'dd/MM');
-          last7Days.push({ date: formattedDate, timestamp: date.toISOString(), revenue: 0 });
+        if (servicesData) {
+          servicesData.forEach(service => {
+            if (service.status === 'completed' && service.price) {
+              // Total revenue from all completed services
+              totalRevenue += Number(service.price);
+              
+              // This month's revenue
+              if (new Date(service.updated_at) >= new Date(firstDayOfMonth)) {
+                thisMonthRevenue += Number(service.price);
+              }
+              
+              // Last month's revenue
+              if (
+                new Date(service.updated_at) >= new Date(lastMonthStart) &&
+                new Date(service.updated_at) < new Date(firstDayOfMonth)
+              ) {
+                lastMonthRevenue += Number(service.price);
+              }
+            }
+          });
         }
         
-        // Fetch revenue for each of the last 7 days
-        for (const day of last7Days) {
-          const startOfThisDay = new Date(new Date(day.timestamp).setHours(0, 0, 0, 0)).toISOString();
-          const endOfThisDay = new Date(new Date(day.timestamp).setHours(23, 59, 59, 999)).toISOString();
-          
-          const { data: dayServices, error: dayServicesError } = await supabase
-            .from('services')
-            .select('price')
-            .gte('created_at', startOfThisDay)
-            .lte('created_at', endOfThisDay);
-          
-          if (dayServicesError) throw dayServicesError;
-          
-          day.revenue = dayServices?.reduce((sum, service) => sum + (parseFloat(service.price) || 0), 0) || 0;
-        }
+        // Calculate percentage change
+        const percentChange = lastMonthRevenue > 0 
+          ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 
+          : thisMonthRevenue > 0 ? 100 : 0;
         
-        // Assemble the dashboard stats
-        const dashboardStats: DashboardStats = {
-          total_services: totalServices || 0,
-          total_clients: totalClients || 0,
-          revenue_today: todayRevenue,
-          pending_services: pendingServices || 0,
-          completed_services: completedServices || 0,
-          recent_services: processedRecentServices,
-          low_stock_items: lowStockItems || [],
-          month_revenue: last7Days
-        };
+        // Update all state values
+        setClientCount({
+          total: totalClients || 0,
+          newThisMonth: newClientsThisMonth || 0
+        });
         
-        setStats(dashboardStats);
+        setDeviceCount({
+          total: totalDevices || 0,
+          needsService: pendingServices
+        });
+        
+        setServices({
+          total: totalServices,
+          completed: completedServices,
+          pending: pendingServices,
+          percentage: servicesPercentage
+        });
+        
+        setRevenue({
+          total: totalRevenue,
+          thisMonth: thisMonthRevenue,
+          lastMonth: lastMonthRevenue,
+          percentChange: percentChange
+        });
       } catch (error) {
         console.error("Erro ao carregar dados do dashboard:", error);
-        toast({
-          variant: 'destructive',
-          title: 'Erro ao carregar dashboard',
-          description: 'Não foi possível obter os dados em tempo real.'
-        });
       } finally {
         setLoading(false);
       }
     };
-    
+
     fetchDashboardData();
     
-    // Set up real-time subscription for dashboard updates
-    const servicesChannel = supabase
-      .channel('services_changes')
+    // Setup real-time subscription for dashboard updates
+    const channel = supabase
+      .channel('public:services')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'services' }, () => {
         fetchDashboardData();
       })
-      .subscribe();
-      
-    const customersChannel = supabase
-      .channel('customers_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, () => {
         fetchDashboardData();
       })
-      .subscribe();
-      
-    const inventoryChannel = supabase
-      .channel('inventory_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'devices' }, () => {
         fetchDashboardData();
       })
       .subscribe();
     
     return () => {
-      supabase.removeChannel(servicesChannel);
-      supabase.removeChannel(customersChannel);
-      supabase.removeChannel(inventoryChannel);
+      supabase.removeChannel(channel);
     };
-  }, [toast]);
+  }, []);
 
-  const getStatusBadge = (status: Service["status"]) => {
-    const statusMap = {
-      pending: { label: "Pendente", class: "bg-yellow-500" },
-      in_progress: { label: "Em Andamento", class: "bg-blue-500" },
-      waiting_parts: { label: "Aguard. Peças", class: "bg-purple-500" },
-      completed: { label: "Concluído", class: "bg-green-500" },
-      delivered: { label: "Entregue", class: "bg-green-700" },
-      canceled: { label: "Cancelado", class: "bg-red-500" }
-    };
-    
-    const statusInfo = statusMap[status];
-    return (
-      <Badge className={statusInfo.class}>
-        {statusInfo.label}
-      </Badge>
-    );
+  // Format currency for displaying
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value);
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+      <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
       </div>
     );
@@ -201,216 +158,89 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-sm text-gray-500">
-          Atualizado em: {new Date().toLocaleDateString('pt-BR', { 
-            day: '2-digit', 
-            month: '2-digit', 
-            year: 'numeric', 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          })}
-        </p>
-      </div>
+      <h1 className="text-2xl font-bold">Dashboard</h1>
       
-      {/* Cards de estatísticas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Client Card */}
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Serviços Totais
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <Smartphone className="w-5 h-5 text-primary mr-2" />
-              <span className="text-2xl font-bold">{stats?.total_services}</span>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
               Clientes
             </CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="flex items-center">
-              <Users className="w-5 h-5 text-blue-500 mr-2" />
-              <span className="text-2xl font-bold">{stats?.total_clients}</span>
-            </div>
+            <div className="text-2xl font-bold">{clientCount.total}</div>
+            <p className="text-xs text-muted-foreground">
+              +{clientCount.newThisMonth} novos neste mês
+            </p>
           </CardContent>
         </Card>
         
+        {/* Devices Card */}
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Faturamento Hoje
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Dispositivos
             </CardTitle>
+            <Smartphone className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="flex items-center">
-              <DollarSign className="w-5 h-5 text-green-600 mr-2" />
-              <span className="text-2xl font-bold">
-                {stats?.revenue_today.toLocaleString('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL'
-                })}
-              </span>
-            </div>
+            <div className="text-2xl font-bold">{deviceCount.total}</div>
+            <p className="text-xs text-muted-foreground">
+              {deviceCount.needsService} aguardando serviço
+            </p>
           </CardContent>
         </Card>
         
+        {/* Services Card */}
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Serviços Pendentes
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Serviços Concluídos
             </CardTitle>
+            <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="flex items-center">
-              <Clock className="w-5 h-5 text-yellow-500 mr-2" />
-              <span className="text-2xl font-bold">{stats?.pending_services}</span>
+            <div className="text-2xl font-bold">
+              {services.completed} / {services.total}
             </div>
-          </CardContent>
-        </Card>
-      </div>
-      
-      {/* Gráfico de faturamento */}
-      <Card className="col-span-4">
-        <CardHeader>
-          <CardTitle>Faturamento dos Últimos 7 dias</CardTitle>
-        </CardHeader>
-        <CardContent className="h-80">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={stats?.month_revenue}
-              margin={{
-                top: 5,
-                right: 30,
-                left: 20,
-                bottom: 5,
-              }}
-            >
-              <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-              <XAxis dataKey="date" />
-              <YAxis 
-                tickFormatter={(value) => 
-                  `R$${value.toLocaleString('pt-BR')}`}
-              />
-              <Tooltip 
-                formatter={(value) => 
-                  [`R$${Number(value).toLocaleString('pt-BR')}`, "Faturamento"]}
-                labelFormatter={(label) => `Data: ${label}`}
-              />
-              <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Serviços Recentes */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Serviços Recentes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {stats?.recent_services && stats.recent_services.length > 0 ? (
-              <div className="space-y-4">
-                {stats.recent_services.map((service) => (
-                  <div key={service.id} className="bg-white dark:bg-gray-800 p-3 rounded-md border">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-medium">{service.issue_description}</h4>
-                        <p className="text-sm text-gray-500">
-                          Cliente: {service.customer_name} • 
-                          {new Date(service.created_at).toLocaleDateString('pt-BR')}
-                        </p>
-                        {service.device_info && (
-                          <p className="text-sm text-gray-500">
-                            Dispositivo: {service.device_info}
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        {getStatusBadge(service.status)}
-                      </div>
-                    </div>
-                    <div className="mt-2 flex justify-between items-center">
-                      <span className="text-sm">
-                        {service.priority === "urgent" && (
-                          <Badge variant="destructive">URGENTE</Badge>
-                        )}
-                      </span>
-                      <span className="font-medium">
-                        {service.price.toLocaleString('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL'
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                Nenhum serviço recente encontrado
-              </div>
-            )}
+            <div className="mt-2">
+              <Progress value={services.percentage} className="h-2" />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {services.percentage}% de conclusão
+            </p>
           </CardContent>
         </Card>
         
-        {/* Itens com Estoque Baixo */}
+        {/* Revenue Card */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <AlertCircle className="w-5 h-5 mr-2 text-red-500" />
-              Itens com Estoque Baixo
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Faturamento
             </CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {stats?.low_stock_items && stats.low_stock_items.length > 0 ? (
-              <div className="space-y-4">
-                {stats.low_stock_items.map((item) => (
-                  <div key={item.id} className="bg-white dark:bg-gray-800 p-3 rounded-md border border-red-100 dark:border-red-900">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-medium">{item.name}</h4>
-                        <p className="text-sm text-gray-500">
-                          SKU: {item.sku} • Categoria: {item.category}
-                        </p>
-                      </div>
-                      <Badge variant="outline" className="bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-400 border-red-200 dark:border-red-800">
-                        Estoque: {item.quantity}/{item.minimum_stock}
-                      </Badge>
-                    </div>
-                    <div className="mt-2 flex justify-between items-center">
-                      <span className="text-sm text-gray-500">
-                        Preço: {item.selling_price.toLocaleString('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL'
-                        })}
-                      </span>
-                      <span className="text-sm font-medium text-red-600 dark:text-red-400">
-                        Repor Estoque
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                Nenhum item com estoque baixo encontrado
-              </div>
-            )}
+            <div className="text-2xl font-bold">
+              {formatCurrency(revenue.total)}
+            </div>
+            <div className="flex items-center pt-1">
+              {revenue.percentChange > 0 ? (
+                <TrendingUp className="mr-1 h-3 w-3 text-green-500" />
+              ) : revenue.percentChange < 0 ? (
+                <TrendingUp className="mr-1 h-3 w-3 text-red-500 rotate-180" />
+              ) : (
+                <Clock className="mr-1 h-3 w-3 text-orange-500" />
+              )}
+              <p className={`text-xs ${revenue.percentChange > 0 ? 'text-green-500' : revenue.percentChange < 0 ? 'text-red-500' : 'text-orange-500'}`}>
+                {revenue.percentChange > 0 ? '+' : ''}{Math.round(revenue.percentChange)}% em relação ao mês anterior
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
     </div>
   );
-};
-
-export default Dashboard;
+}
