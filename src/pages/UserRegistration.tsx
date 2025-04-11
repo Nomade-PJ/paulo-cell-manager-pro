@@ -368,7 +368,7 @@ export default function UserRegistration() {
                           <MaskedInput
                             mask="99999-999"
                             placeholder="00000-000"
-                            value={field.value}
+                            {...field}
                             onChange={(e) => {
                               field.onChange(e);
                               handleCepChange(e.target.value);
