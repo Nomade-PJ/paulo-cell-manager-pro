@@ -33,8 +33,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { toast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabaseClient';
+import { useAuth } from '@/contexts/AuthContext';
 
-import { Moon, Sun, Upload, UserCircle, BellRing } from 'lucide-react';
+import { Moon, Sun, Upload, UserCircle, BellRing, Loader2 } from 'lucide-react';
 
 // Form schemas
 const profileFormSchema = z.object({
@@ -62,11 +63,12 @@ type NotificationFormValues = z.infer<typeof notificationFormSchema>;
 type AppearanceFormValues = z.infer<typeof appearanceFormSchema>;
 
 const Settings = () => {
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Profile form
   const profileForm = useForm<ProfileFormValues>({
@@ -98,17 +100,15 @@ const Settings = () => {
 
   useEffect(() => {
     const fetchUserData = async () => {
+      if (!user) return;
+      
       setIsLoading(true);
       try {
-        // For demo purposes, we'll use a mock user ID
-        const mockUserId = '123e4567-e89b-12d3-a456-426614174000';
-        setUserId(mockUserId);
-
         // First check if user profile exists
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', mockUserId)
+          .eq('id', user.id)
           .single();
 
         if (profileError && profileError.code !== 'PGRST116') {
@@ -118,7 +118,7 @@ const Settings = () => {
         // If profile exists, set form values
         if (profileData) {
           profileForm.setValue('name', profileData.name || '');
-          profileForm.setValue('email', profileData.email || '');
+          profileForm.setValue('email', user.email || '');
           setAvatarUrl(profileData.avatar_url || null);
           setAvatarPreview(profileData.avatar_url || null);
         }
@@ -127,7 +127,7 @@ const Settings = () => {
         const { data: settingsData, error: settingsError } = await supabase
           .from('settings')
           .select('*')
-          .eq('user_id', mockUserId)
+          .eq('user_id', user.id)
           .single();
 
         if (settingsError && settingsError.code !== 'PGRST116') {
@@ -158,10 +158,14 @@ const Settings = () => {
       }
     };
 
-    fetchUserData();
-  }, [profileForm, notificationForm, appearanceForm]);
+    if (user) {
+      fetchUserData();
+    }
+  }, [user, profileForm, notificationForm, appearanceForm]);
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user) return;
+    
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setAvatarFile(file);
@@ -172,21 +176,66 @@ const Settings = () => {
         setAvatarPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+      
+      // Upload immediately
+      try {
+        setUploadingAvatar(true);
+        
+        const fileExt = file.name.split('.').pop();
+        const filePath = `${user.id}/avatar.${fileExt}`;
+        
+        // Upload file to storage
+        const { error: uploadError, data } = await supabase.storage
+          .from('avatars')
+          .upload(filePath, file, { upsert: true });
+          
+        if (uploadError) throw uploadError;
+        
+        // Get the public URL
+        const { data: publicUrlData } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(filePath);
+          
+        const publicUrl = publicUrlData.publicUrl;
+        setAvatarUrl(publicUrl);
+        
+        // Update the profile with the new avatar URL
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ avatar_url: publicUrl })
+          .eq('id', user.id);
+          
+        if (updateError) throw updateError;
+        
+        toast({
+          title: 'Imagem Atualizada',
+          description: 'Sua foto de perfil foi atualizada com sucesso.'
+        });
+      } catch (error) {
+        console.error('Error uploading avatar:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Erro',
+          description: 'Não foi possível atualizar sua foto de perfil.'
+        });
+      } finally {
+        setUploadingAvatar(false);
+      }
     }
   };
 
   const onProfileSubmit = async (data: ProfileFormValues) => {
-    if (!userId) return;
+    if (!user) return;
     
     setIsLoading(true);
     try {
-      // Update profile
+      // Update profile - only name can be changed, email is fixed
       const { error } = await supabase
         .from('profiles')
         .upsert({
-          id: userId,
+          id: user.id,
           name: data.name,
-          email: data.email,
+          email: user.email,
           updated_at: new Date().toISOString(),
         });
         
@@ -209,7 +258,7 @@ const Settings = () => {
   };
 
   const onNotificationSubmit = async (data: NotificationFormValues) => {
-    if (!userId) return;
+    if (!user) return;
     
     setIsLoading(true);
     try {
@@ -217,7 +266,7 @@ const Settings = () => {
       const { error } = await supabase
         .from('settings')
         .upsert({
-          user_id: userId,
+          user_id: user.id,
           email_notifications: data.emailNotifications,
           sms_notifications: data.smsNotifications,
           weekly_summary: data.weeklySummary,
@@ -243,7 +292,7 @@ const Settings = () => {
   };
 
   const onAppearanceSubmit = async (data: AppearanceFormValues) => {
-    if (!userId) return;
+    if (!user) return;
     
     setIsLoading(true);
     try {
@@ -251,7 +300,7 @@ const Settings = () => {
       const { error } = await supabase
         .from('settings')
         .upsert({
-          user_id: userId,
+          user_id: user.id,
           theme: data.theme,
           updated_at: new Date().toISOString(),
         });
@@ -277,6 +326,22 @@ const Settings = () => {
     }
   };
 
+  // User not authenticated
+  if (!user) {
+    return (
+      <div className="flex justify-center items-center h-[calc(100vh-5rem)]">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Acesso Restrito</CardTitle>
+            <CardDescription>
+              Você precisa estar autenticado para acessar esta página.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Configurações</h1>
@@ -300,17 +365,34 @@ const Settings = () => {
             <CardContent className="space-y-6">
               <div className="flex flex-col items-center space-y-4">
                 <Avatar className="h-24 w-24">
-                  <AvatarImage src={avatarPreview || undefined} alt="Avatar" />
-                  <AvatarFallback className="text-2xl">
-                    {profileForm.getValues('name')?.charAt(0)?.toUpperCase() || 'U'}
-                  </AvatarFallback>
+                  {uploadingAvatar ? (
+                    <div className="h-full w-full flex items-center justify-center bg-muted">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
+                    <>
+                      <AvatarImage src={avatarPreview || undefined} alt="Avatar" />
+                      <AvatarFallback className="text-2xl">
+                        {profileForm.getValues('name')?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                      </AvatarFallback>
+                    </>
+                  )}
                 </Avatar>
                 
                 <div className="flex items-center">
                   <label htmlFor="avatar-upload" className="cursor-pointer">
                     <div className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 h-9 rounded-md px-3">
-                      <Upload className="h-4 w-4" />
-                      <span>Alterar foto</span>
+                      {uploadingAvatar ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Carregando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4" />
+                          <span>Alterar foto</span>
+                        </>
+                      )}
                     </div>
                     <input 
                       id="avatar-upload" 
@@ -318,6 +400,7 @@ const Settings = () => {
                       className="hidden" 
                       accept="image/*"
                       onChange={handleAvatarChange}
+                      disabled={uploadingAvatar}
                     />
                   </label>
                 </div>
@@ -348,8 +431,11 @@ const Settings = () => {
                       <FormItem>
                         <FormLabel>Email</FormLabel>
                         <FormControl>
-                          <Input placeholder="email@exemplo.com" {...field} />
+                          <Input placeholder="email@exemplo.com" {...field} disabled readOnly className="bg-muted" />
                         </FormControl>
+                        <FormDescription>
+                          O email não pode ser alterado.
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}

@@ -4,109 +4,174 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Users, Smartphone, Clock, CheckCircle, AlertCircle, DollarSign } from "lucide-react";
-import { DashboardStats, Service } from "@/types";
+import { DashboardStats, Service, Part } from "@/types";
+import { supabase } from "@/integrations/supabaseClient";
+import { useToast } from "@/components/ui/use-toast";
+import { addDays, format, subDays } from "date-fns";
 
 const Dashboard = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // Simular dados do dashboard - em produção, seria uma chamada API
-        const mockData: DashboardStats = {
-          total_services: 124,
-          total_clients: 87,
-          revenue_today: 1250.5,
-          pending_services: 18,
-          completed_services: 106,
-          recent_services: [
-            {
-              id: "1",
-              device_id: "d1",
-              customer_id: "c1",
-              status: "in_progress",
-              issue_description: "Tela quebrada",
-              priority: "high",
-              price: 350,
-              created_at: "2024-04-07T10:30:00Z",
-              updated_at: "2024-04-07T14:20:00Z"
-            },
-            {
-              id: "2",
-              device_id: "d2",
-              customer_id: "c2",
-              status: "waiting_parts",
-              issue_description: "Bateria não carrega",
-              priority: "normal",
-              price: 180,
-              created_at: "2024-04-06T09:15:00Z",
-              updated_at: "2024-04-06T11:45:00Z"
-            },
-            {
-              id: "3",
-              device_id: "d3",
-              customer_id: "c3",
-              status: "pending",
-              issue_description: "Não liga",
-              priority: "urgent",
-              price: 120,
-              created_at: "2024-04-08T08:00:00Z",
-              updated_at: "2024-04-08T08:00:00Z"
-            }
-          ],
-          low_stock_items: [
-            {
-              id: "p1",
-              name: "Tela iPhone 11",
-              description: "Display LCD Original",
-              sku: "SCR-IP11-BLK",
-              category: "Telas",
-              quantity: 2,
-              minimum_stock: 5,
-              cost_price: 250,
-              selling_price: 450,
-              created_at: "2024-01-10T00:00:00Z",
-              updated_at: "2024-04-05T10:30:00Z"
-            },
-            {
-              id: "p2",
-              name: "Bateria Samsung S21",
-              description: "Bateria Original 4000mAh",
-              sku: "BAT-SS21",
-              category: "Baterias",
-              quantity: 1,
-              minimum_stock: 3,
-              cost_price: 80,
-              selling_price: 150,
-              created_at: "2024-02-15T00:00:00Z",
-              updated_at: "2024-04-06T15:20:00Z"
-            }
-          ],
-          month_revenue: [
-            { date: "01/04", revenue: 780 },
-            { date: "02/04", revenue: 920 },
-            { date: "03/04", revenue: 1100 },
-            { date: "04/04", revenue: 650 },
-            { date: "05/04", revenue: 750 },
-            { date: "06/04", revenue: 890 },
-            { date: "07/04", revenue: 1050 },
-          ]
+        setLoading(true);
+        
+        // Fetch total services
+        const { count: totalServices, error: servicesError } = await supabase
+          .from('services')
+          .select('*', { count: 'exact', head: true });
+        
+        if (servicesError) throw servicesError;
+        
+        // Fetch total clients
+        const { count: totalClients, error: clientsError } = await supabase
+          .from('customers')
+          .select('*', { count: 'exact', head: true });
+        
+        if (clientsError) throw clientsError;
+        
+        // Fetch today's revenue
+        const today = new Date();
+        const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+        const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59).toISOString();
+        
+        const { data: todayServices, error: todayServicesError } = await supabase
+          .from('services')
+          .select('price')
+          .gte('created_at', startOfDay)
+          .lte('created_at', endOfDay);
+        
+        if (todayServicesError) throw todayServicesError;
+        
+        const todayRevenue = todayServices?.reduce((sum, service) => sum + (parseFloat(service.price) || 0), 0) || 0;
+        
+        // Fetch pending services
+        const { count: pendingServices, error: pendingError } = await supabase
+          .from('services')
+          .select('*', { count: 'exact', head: true })
+          .in('status', ['pending', 'in_progress', 'waiting_parts']);
+        
+        if (pendingError) throw pendingError;
+        
+        // Fetch completed services
+        const { count: completedServices, error: completedError } = await supabase
+          .from('services')
+          .select('*', { count: 'exact', head: true })
+          .in('status', ['completed', 'delivered']);
+        
+        if (completedError) throw completedError;
+        
+        // Fetch recent services
+        const { data: recentServices, error: recentError } = await supabase
+          .from('services')
+          .select(`
+            *,
+            customers!services_customer_id_fkey(name),
+            devices!services_device_id_fkey(brand, model)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(3);
+        
+        if (recentError) throw recentError;
+
+        // Process recent services to match our type
+        const processedRecentServices: Service[] = recentServices.map((service: any) => ({
+          ...service,
+          customer_name: service.customers?.name,
+          device_info: `${service.devices?.brand} ${service.devices?.model}`
+        }));
+        
+        // Fetch low stock items
+        const { data: lowStockItems, error: lowStockError } = await supabase
+          .from('inventory')
+          .select('*')
+          .lt('quantity', supabase.raw('minimum_stock'))
+          .limit(5);
+        
+        if (lowStockError) throw lowStockError;
+        
+        // Generate revenue data for the last 7 days
+        const last7Days = [];
+        for (let i = 6; i >= 0; i--) {
+          const date = subDays(today, i);
+          const formattedDate = format(date, 'dd/MM');
+          last7Days.push({ date: formattedDate, timestamp: date.toISOString(), revenue: 0 });
+        }
+        
+        // Fetch revenue for each of the last 7 days
+        for (const day of last7Days) {
+          const startOfThisDay = new Date(new Date(day.timestamp).setHours(0, 0, 0, 0)).toISOString();
+          const endOfThisDay = new Date(new Date(day.timestamp).setHours(23, 59, 59, 999)).toISOString();
+          
+          const { data: dayServices, error: dayServicesError } = await supabase
+            .from('services')
+            .select('price')
+            .gte('created_at', startOfThisDay)
+            .lte('created_at', endOfThisDay);
+          
+          if (dayServicesError) throw dayServicesError;
+          
+          day.revenue = dayServices?.reduce((sum, service) => sum + (parseFloat(service.price) || 0), 0) || 0;
+        }
+        
+        // Assemble the dashboard stats
+        const dashboardStats: DashboardStats = {
+          total_services: totalServices || 0,
+          total_clients: totalClients || 0,
+          revenue_today: todayRevenue,
+          pending_services: pendingServices || 0,
+          completed_services: completedServices || 0,
+          recent_services: processedRecentServices,
+          low_stock_items: lowStockItems || [],
+          month_revenue: last7Days
         };
         
-        // Simular tempo de carregamento
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
-        setStats(mockData);
+        setStats(dashboardStats);
       } catch (error) {
         console.error("Erro ao carregar dados do dashboard:", error);
+        toast({
+          variant: 'destructive',
+          title: 'Erro ao carregar dashboard',
+          description: 'Não foi possível obter os dados em tempo real.'
+        });
       } finally {
         setLoading(false);
       }
     };
     
     fetchDashboardData();
-  }, []);
+    
+    // Set up real-time subscription for dashboard updates
+    const servicesChannel = supabase
+      .channel('services_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'services' }, () => {
+        fetchDashboardData();
+      })
+      .subscribe();
+      
+    const customersChannel = supabase
+      .channel('customers_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, () => {
+        fetchDashboardData();
+      })
+      .subscribe();
+      
+    const inventoryChannel = supabase
+      .channel('inventory_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
+        fetchDashboardData();
+      })
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(servicesChannel);
+      supabase.removeChannel(customersChannel);
+      supabase.removeChannel(inventoryChannel);
+    };
+  }, [toast]);
 
   const getStatusBadge = (status: Service["status"]) => {
     const statusMap = {
@@ -253,37 +318,48 @@ const Dashboard = () => {
             <CardTitle>Serviços Recentes</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {stats?.recent_services.map((service) => (
-                <div key={service.id} className="bg-white p-3 rounded-md border">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-medium">{service.issue_description}</h4>
-                      <p className="text-sm text-gray-500">
-                        ID: {service.id} • 
-                        {new Date(service.created_at).toLocaleDateString('pt-BR')}
-                      </p>
+            {stats?.recent_services && stats.recent_services.length > 0 ? (
+              <div className="space-y-4">
+                {stats.recent_services.map((service) => (
+                  <div key={service.id} className="bg-white dark:bg-gray-800 p-3 rounded-md border">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-medium">{service.issue_description}</h4>
+                        <p className="text-sm text-gray-500">
+                          Cliente: {service.customer_name} • 
+                          {new Date(service.created_at).toLocaleDateString('pt-BR')}
+                        </p>
+                        {service.device_info && (
+                          <p className="text-sm text-gray-500">
+                            Dispositivo: {service.device_info}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        {getStatusBadge(service.status)}
+                      </div>
                     </div>
-                    <div>
-                      {getStatusBadge(service.status)}
+                    <div className="mt-2 flex justify-between items-center">
+                      <span className="text-sm">
+                        {service.priority === "urgent" && (
+                          <Badge variant="destructive">URGENTE</Badge>
+                        )}
+                      </span>
+                      <span className="font-medium">
+                        {service.price.toLocaleString('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL'
+                        })}
+                      </span>
                     </div>
                   </div>
-                  <div className="mt-2 flex justify-between items-center">
-                    <span className="text-sm">
-                      {service.priority === "urgent" && (
-                        <Badge variant="destructive">URGENTE</Badge>
-                      )}
-                    </span>
-                    <span className="font-medium">
-                      {service.price.toLocaleString('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL'
-                      })}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                Nenhum serviço recente encontrado
+              </div>
+            )}
           </CardContent>
         </Card>
         
@@ -296,34 +372,40 @@ const Dashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {stats?.low_stock_items.map((item) => (
-                <div key={item.id} className="bg-white p-3 rounded-md border border-red-100">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-medium">{item.name}</h4>
-                      <p className="text-sm text-gray-500">
-                        SKU: {item.sku} • Categoria: {item.category}
-                      </p>
+            {stats?.low_stock_items && stats.low_stock_items.length > 0 ? (
+              <div className="space-y-4">
+                {stats.low_stock_items.map((item) => (
+                  <div key={item.id} className="bg-white dark:bg-gray-800 p-3 rounded-md border border-red-100 dark:border-red-900">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-medium">{item.name}</h4>
+                        <p className="text-sm text-gray-500">
+                          SKU: {item.sku} • Categoria: {item.category}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-400 border-red-200 dark:border-red-800">
+                        Estoque: {item.quantity}/{item.minimum_stock}
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className="bg-red-50 text-red-500 border-red-200">
-                      Estoque: {item.quantity}/{item.minimum_stock}
-                    </Badge>
+                    <div className="mt-2 flex justify-between items-center">
+                      <span className="text-sm text-gray-500">
+                        Preço: {item.selling_price.toLocaleString('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL'
+                        })}
+                      </span>
+                      <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                        Repor Estoque
+                      </span>
+                    </div>
                   </div>
-                  <div className="mt-2 flex justify-between items-center">
-                    <span className="text-sm text-gray-500">
-                      Preço: {item.selling_price.toLocaleString('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL'
-                      })}
-                    </span>
-                    <span className="text-sm font-medium text-red-600">
-                      Repor Estoque
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                Nenhum item com estoque baixo encontrado
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
