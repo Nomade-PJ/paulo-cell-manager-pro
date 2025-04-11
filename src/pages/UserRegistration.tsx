@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, ChangeEvent } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -31,7 +31,7 @@ import {
 import { toast } from '@/components/ui/use-toast';
 import { PageHeader } from '@/components/PageHeader';
 import { User, ArrowRight } from 'lucide-react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabaseClient';
 
 // Define document type enum
@@ -79,9 +79,9 @@ type UserRegistrationFormValues = z.infer<typeof FormSchema>;
 
 export default function UserRegistration() {
   const navigate = useNavigate();
+  const params = useParams();
   const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  const clientId = queryParams.get('id');
+  const clientId = params.id || new URLSearchParams(location.search).get('id');
   const [isLoading, setIsLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -310,10 +310,7 @@ export default function UserRegistration() {
                           <MaskedInput
                             mask={watchDocumentType === DocumentTypes.cpf ? '999.999.999-99' : '99.999.999/9999-99'}
                             placeholder={watchDocumentType === DocumentTypes.cpf ? '000.000.000-00' : '00.000.000/0000-00'}
-                            value={field.value}
-                            onChange={field.onChange}
-                            onBlur={field.onBlur}
-                            name={field.name}
+                            {...field}
                           />
                         </FormControl>
                         <FormMessage />
@@ -333,10 +330,7 @@ export default function UserRegistration() {
                           <MaskedInput
                             mask="(99) 99999-9999"
                             placeholder="(00) 00000-0000"
-                            value={field.value}
-                            onChange={field.onChange}
-                            onBlur={field.onBlur}
-                            name={field.name}
+                            {...field}
                           />
                         </FormControl>
                         <FormMessage />
@@ -379,8 +373,6 @@ export default function UserRegistration() {
                               field.onChange(e);
                               handleCepChange(e.target.value);
                             }}
-                            onBlur={field.onBlur}
-                            name={field.name}
                           />
                         </FormControl>
                         <FormMessage />

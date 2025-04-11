@@ -15,6 +15,8 @@ const MaskedInput = React.forwardRef<HTMLInputElement, MaskedInputProps>(
       <InputMask
         mask={mask}
         onChange={onChange}
+        disabled={props.disabled}
+        readOnly={props.readOnly}
         {...props}
       >
         {(inputProps: any) => (
