@@ -307,8 +307,7 @@ export default function UserRegistration() {
                       <FormItem>
                         <FormLabel>Número do Documento*</FormLabel>
                         <FormControl>
-                          <MaskedInput
-                            mask={watchDocumentType === DocumentTypes.cpf ? '999.999.999-99' : '99.999.999/9999-99'}
+                          <Input 
                             placeholder={watchDocumentType === DocumentTypes.cpf ? '000.000.000-00' : '00.000.000/0000-00'}
                             {...field}
                           />
@@ -327,8 +326,7 @@ export default function UserRegistration() {
                       <FormItem>
                         <FormLabel>Telefone*</FormLabel>
                         <FormControl>
-                          <MaskedInput
-                            mask="(99) 99999-9999"
+                          <Input
                             placeholder="(00) 00000-0000"
                             {...field}
                           />
@@ -365,8 +363,7 @@ export default function UserRegistration() {
                       <FormItem>
                         <FormLabel>CEP*</FormLabel>
                         <FormControl>
-                          <MaskedInput
-                            mask="99999-999"
+                          <Input
                             placeholder="00000-000"
                             {...field}
                             onChange={(e) => {
