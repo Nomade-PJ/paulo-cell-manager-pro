@@ -10,8 +10,7 @@ import {
   Settings, 
   BarChart3, 
   Menu,
-  FileText,
-  UserPlus
+  FileText
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,7 +25,6 @@ const Sidebar = () => {
   
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-    { icon: UserPlus, label: "Cadastro de Cliente", path: "/user-registration" },
     { icon: Users, label: "Clientes", path: "/clients" },
     { icon: Smartphone, label: "Dispositivos", path: "/devices" },
     { icon: Wrench, label: "Serviços", path: "/services" },

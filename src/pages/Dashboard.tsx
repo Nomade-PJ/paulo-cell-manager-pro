@@ -4,7 +4,49 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ClientCount, DeviceCount, CompletedServices, Revenue } from "@/types";
 import { supabase } from "@/integrations/supabaseClient";
-import { Users, Smartphone, CheckCircle, DollarSign, TrendingUp, Clock } from "lucide-react";
+import { 
+  Users, 
+  Smartphone, 
+  CheckCircle, 
+  DollarSign, 
+  TrendingUp, 
+  Clock,
+  Calendar 
+} from "lucide-react";
+
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from "@/components/ui/chart";
+
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip
+} from "recharts";
+
+// Helper function to get data for the last 7 days
+const getLast7DaysLabels = () => {
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    days.push({
+      date: date.toISOString().split('T')[0],
+      label: date.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' })
+    });
+  }
+  return days;
+};
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -12,6 +54,8 @@ export default function Dashboard() {
   const [deviceCount, setDeviceCount] = useState<DeviceCount>({ total: 0, needsService: 0 });
   const [services, setServices] = useState<CompletedServices>({ total: 0, completed: 0, pending: 0, percentage: 0 });
   const [revenue, setRevenue] = useState<Revenue>({ total: 0, thisMonth: 0, lastMonth: 0, percentChange: 0 });
+  const [serviceChartData, setServiceChartData] = useState<any[]>([]);
+  const [revenueChartData, setRevenueChartData] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -112,6 +156,42 @@ export default function Dashboard() {
           lastMonth: lastMonthRevenue,
           percentChange: percentChange
         });
+
+        // Prepare chart data for services by date
+        const last7Days = getLast7DaysLabels();
+        const servicesByDay = last7Days.map(day => {
+          const dayServices = servicesData?.filter(service => 
+            service.created_at.split('T')[0] === day.date
+          ) || [];
+          
+          return {
+            name: day.label,
+            total: dayServices.length,
+            completed: dayServices.filter(s => s.status === 'completed').length,
+            pending: dayServices.filter(s => s.status === 'pending').length
+          };
+        });
+        
+        setServiceChartData(servicesByDay);
+
+        // Prepare revenue chart data
+        const revenueByDay = last7Days.map(day => {
+          const dayRevenue = servicesData
+            ?.filter(service => 
+              service.created_at.split('T')[0] === day.date && 
+              service.status === 'completed' && 
+              service.price
+            )
+            .reduce((total, service) => total + Number(service.price), 0) || 0;
+          
+          return {
+            name: day.label,
+            revenue: dayRevenue
+          };
+        });
+        
+        setRevenueChartData(revenueByDay);
+        
       } catch (error) {
         console.error("Erro ao carregar dados do dashboard:", error);
       } finally {
@@ -241,6 +321,170 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Service Chart */}
+      <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-medium">Serviços nos Últimos 7 Dias</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ChartContainer
+                config={{
+                  total: { label: "Total" },
+                  completed: { label: "Concluído", theme: { light: "#10b981", dark: "#10b981" } },
+                  pending: { label: "Pendente", theme: { light: "#f59e0b", dark: "#f59e0b" } },
+                }}
+              >
+                <BarChart data={serviceChartData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis 
+                    dataKey="name" 
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                  />
+                  <YAxis 
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                  />
+                  <ChartTooltip
+                    content={({ active, payload }) => {
+                      if (active && payload?.length) {
+                        return (
+                          <ChartTooltipContent>
+                            {payload.map((entry) => (
+                              <div key={entry.name} className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-1">
+                                  <div
+                                    className="h-2 w-2 rounded-full"
+                                    style={{ backgroundColor: entry.color }}
+                                  />
+                                  <span>{entry.name === "total" ? "Total" : entry.name === "completed" ? "Concluídos" : "Pendentes"}</span>
+                                </div>
+                                <span>{entry.value}</span>
+                              </div>
+                            ))}
+                          </ChartTooltipContent>
+                        )
+                      }
+                      return null
+                    }}
+                  />
+                  <Bar dataKey="total" fill="var(--primary)" radius={[4, 4, 0, 0]} barSize={30} />
+                  <Bar dataKey="completed" fill="#10b981" radius={[4, 4, 0, 0]} barSize={30} />
+                  <Bar dataKey="pending" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={30} />
+                  <ChartLegend
+                    content={<ChartLegendContent />}
+                    verticalAlign="top"
+                    align="end"
+                  />
+                </BarChart>
+              </ChartContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Revenue Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-medium">Faturamento nos Últimos 7 Dias</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ChartContainer
+                config={{
+                  revenue: { 
+                    label: "Faturamento", 
+                    theme: { light: "#3b82f6", dark: "#60a5fa" } 
+                  },
+                }}
+              >
+                <AreaChart data={revenueChartData}>
+                  <defs>
+                    <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis 
+                    dataKey="name" 
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                  />
+                  <YAxis 
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                    tickFormatter={(value) => `R$ ${value}`}
+                  />
+                  <ChartTooltip
+                    content={({ active, payload }) => {
+                      if (active && payload?.length) {
+                        return (
+                          <ChartTooltipContent>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1">
+                                <div
+                                  className="h-2 w-2 rounded-full"
+                                  style={{ backgroundColor: "#3b82f6" }}
+                                />
+                                <span>Faturamento</span>
+                              </div>
+                              <span>{formatCurrency(payload[0].value)}</span>
+                            </div>
+                          </ChartTooltipContent>
+                        )
+                      }
+                      return null
+                    }}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="revenue" 
+                    stroke="#3b82f6" 
+                    fillOpacity={1} 
+                    fill="url(#revenueGradient)" 
+                  />
+                  <ChartLegend
+                    content={<ChartLegendContent />}
+                    verticalAlign="top"
+                    align="end"
+                  />
+                </AreaChart>
+              </ChartContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Calendar/Upcoming Services Card */}
+      <Card>
+        <CardHeader className="flex flex-row items-center">
+          <div className="flex items-center">
+            <Calendar className="mr-2 h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-lg font-medium">Próximos Serviços</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {services.pending === 0 ? (
+              <div className="text-center py-4 text-muted-foreground">
+                Nenhum serviço pendente no momento
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <div className="text-2xl font-bold text-primary">{services.pending}</div>
+                <p className="text-muted-foreground">Serviços aguardando atendimento</p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

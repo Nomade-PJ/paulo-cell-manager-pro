@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -37,7 +36,6 @@ import { useAuth } from '@/contexts/AuthContext';
 
 import { Moon, Sun, Upload, UserCircle, BellRing, Loader2 } from 'lucide-react';
 
-// Form schemas
 const profileFormSchema = z.object({
   name: z.string().min(2, {
     message: 'O nome deve ter pelo menos 2 caracteres.',
@@ -70,7 +68,6 @@ const Settings = () => {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-  // Profile form
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
@@ -80,7 +77,6 @@ const Settings = () => {
     },
   });
 
-  // Notification form
   const notificationForm = useForm<NotificationFormValues>({
     resolver: zodResolver(notificationFormSchema),
     defaultValues: {
@@ -90,7 +86,6 @@ const Settings = () => {
     },
   });
 
-  // Appearance form
   const appearanceForm = useForm<AppearanceFormValues>({
     resolver: zodResolver(appearanceFormSchema),
     defaultValues: {
@@ -104,7 +99,6 @@ const Settings = () => {
       
       setIsLoading(true);
       try {
-        // First check if user profile exists
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*')
@@ -115,7 +109,6 @@ const Settings = () => {
           throw profileError;
         }
 
-        // If profile exists, set form values
         if (profileData) {
           profileForm.setValue('name', profileData.name || '');
           profileForm.setValue('email', user.email || '');
@@ -123,7 +116,6 @@ const Settings = () => {
           setAvatarPreview(profileData.avatar_url || null);
         }
 
-        // Check if settings exist
         const { data: settingsData, error: settingsError } = await supabase
           .from('settings')
           .select('*')
@@ -134,7 +126,6 @@ const Settings = () => {
           throw settingsError;
         }
 
-        // If settings exist, set form values
         if (settingsData) {
           notificationForm.setValue('emailNotifications', settingsData.email_notifications || false);
           notificationForm.setValue('smsNotifications', settingsData.sms_notifications || false);
@@ -142,9 +133,9 @@ const Settings = () => {
           appearanceForm.setValue('theme', settingsData.theme as 'light' | 'dark' || 'light');
         }
 
-        // Set the document theme based on the setting
         if (settingsData?.theme) {
           document.documentElement.classList.toggle('dark', settingsData.theme === 'dark');
+          updateThemeColors(settingsData.theme);
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -170,28 +161,24 @@ const Settings = () => {
       const file = e.target.files[0];
       setAvatarFile(file);
       
-      // Create preview URL
       const reader = new FileReader();
       reader.onloadend = () => {
         setAvatarPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
       
-      // Upload immediately
       try {
         setUploadingAvatar(true);
         
         const fileExt = file.name.split('.').pop();
         const filePath = `${user.id}/avatar.${fileExt}`;
         
-        // Upload file to storage
         const { error: uploadError, data } = await supabase.storage
           .from('avatars')
           .upload(filePath, file, { upsert: true });
           
         if (uploadError) throw uploadError;
         
-        // Get the public URL
         const { data: publicUrlData } = supabase.storage
           .from('avatars')
           .getPublicUrl(filePath);
@@ -199,7 +186,6 @@ const Settings = () => {
         const publicUrl = publicUrlData.publicUrl;
         setAvatarUrl(publicUrl);
         
-        // Update the profile with the new avatar URL
         const { error: updateError } = await supabase
           .from('profiles')
           .update({ avatar_url: publicUrl })
@@ -229,7 +215,6 @@ const Settings = () => {
     
     setIsLoading(true);
     try {
-      // Update profile - only name can be changed, email is fixed
       const { error } = await supabase
         .from('profiles')
         .upsert({
@@ -262,7 +247,6 @@ const Settings = () => {
     
     setIsLoading(true);
     try {
-      // Update notification settings
       const { error } = await supabase
         .from('settings')
         .upsert({
@@ -296,7 +280,6 @@ const Settings = () => {
     
     setIsLoading(true);
     try {
-      // Update appearance settings
       const { error } = await supabase
         .from('settings')
         .upsert({
@@ -307,8 +290,8 @@ const Settings = () => {
         
       if (error) throw error;
       
-      // Update the document theme in real-time
       document.documentElement.classList.toggle('dark', data.theme === 'dark');
+      updateThemeColors(data.theme);
       
       toast({
         title: 'Aparência atualizada',
@@ -326,7 +309,36 @@ const Settings = () => {
     }
   };
 
-  // User not authenticated
+  const updateThemeColors = (theme: 'light' | 'dark') => {
+    if (theme === 'dark') {
+      document.documentElement.style.setProperty('--background', '222.2 84% 4.9%');
+      document.documentElement.style.setProperty('--foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--card', '222.2 84% 4.9%');
+      document.documentElement.style.setProperty('--card-foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--popover', '222.2 84% 4.9%');
+      document.documentElement.style.setProperty('--popover-foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--muted', '217.2 32.6% 17.5%');
+      document.documentElement.style.setProperty('--muted-foreground', '215 20.2% 65.1%');
+      document.documentElement.style.setProperty('--accent', '217.2 32.6% 17.5%');
+      document.documentElement.style.setProperty('--accent-foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--border', '217.2 32.6% 17.5%');
+      document.documentElement.style.setProperty('--input', '217.2 32.6% 17.5%');
+    } else {
+      document.documentElement.style.setProperty('--background', '0 0% 100%');
+      document.documentElement.style.setProperty('--foreground', '222.2 84% 4.9%');
+      document.documentElement.style.setProperty('--card', '0 0% 100%');
+      document.documentElement.style.setProperty('--card-foreground', '222.2 84% 4.9%');
+      document.documentElement.style.setProperty('--popover', '0 0% 100%');
+      document.documentElement.style.setProperty('--popover-foreground', '222.2 84% 4.9%');
+      document.documentElement.style.setProperty('--muted', '210 40% 96.1%');
+      document.documentElement.style.setProperty('--muted-foreground', '215.4 16.3% 46.9%');
+      document.documentElement.style.setProperty('--accent', '210 40% 96.1%');
+      document.documentElement.style.setProperty('--accent-foreground', '222.2 47.4% 11.2%');
+      document.documentElement.style.setProperty('--border', '214.3 31.8% 91.4%');
+      document.documentElement.style.setProperty('--input', '214.3 31.8% 91.4%');
+    }
+  };
+
   if (!user) {
     return (
       <div className="flex justify-center items-center h-[calc(100vh-5rem)]">
@@ -353,7 +365,6 @@ const Settings = () => {
           <TabsTrigger value="appearance">Aparência</TabsTrigger>
         </TabsList>
         
-        {/* Profile Settings */}
         <TabsContent value="profile">
           <Card>
             <CardHeader>
@@ -450,7 +461,6 @@ const Settings = () => {
           </Card>
         </TabsContent>
         
-        {/* Notification Settings */}
         <TabsContent value="notifications">
           <Card>
             <CardHeader>
@@ -534,7 +544,6 @@ const Settings = () => {
           </Card>
         </TabsContent>
         
-        {/* Appearance Settings */}
         <TabsContent value="appearance">
           <Card>
             <CardHeader>
