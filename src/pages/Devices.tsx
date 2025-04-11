@@ -137,6 +137,38 @@ const Devices = () => {
     );
   };
 
+  const handleNewDevice = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id, name')
+        .order('name', { ascending: true });
+        
+      if (error) throw error;
+      
+      if (data.length === 0) {
+        toast({
+          title: "Cliente não encontrado",
+          description: "Por favor, cadastre um cliente primeiro.",
+          variant: "destructive",
+        });
+        navigate("/user-registration");
+        return;
+      }
+      
+      // If there are clients, navigate to the device registration
+      navigate(`/device-registration/${data[0].id}`);
+    } catch (error) {
+      console.error("Erro ao buscar clientes:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao buscar clientes",
+        description: "Por favor, cadastre um cliente primeiro.",
+      });
+      navigate("/user-registration");
+    }
+  };
+  
   const handleEditDevice = (deviceId: string) => {
     navigate(`/device-registration/${deviceId}`);
   };
@@ -260,6 +292,10 @@ const Devices = () => {
     <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-xl sm:text-2xl font-bold">Dispositivos</h1>
+        <Button className="w-full sm:w-auto" onClick={handleNewDevice}>
+          <Plus className="mr-2 h-4 w-4" />
+          Novo Dispositivo
+        </Button>
       </div>
       
       <div className="flex items-center space-x-2">

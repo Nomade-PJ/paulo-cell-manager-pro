@@ -26,7 +26,7 @@ const Sidebar = () => {
   
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-    { icon: UserPlus, label: "Cadastro de Cliente", path: "/user-registration" },
+    // Removido o item de cadastro completo do usuário como solicitado
     { icon: Users, label: "Clientes", path: "/clients" },
     { icon: Smartphone, label: "Dispositivos", path: "/devices" },
     { icon: Wrench, label: "Serviços", path: "/services" },

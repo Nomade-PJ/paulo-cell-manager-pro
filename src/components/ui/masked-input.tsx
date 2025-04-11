@@ -11,7 +11,6 @@ interface MaskedInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 
 const MaskedInput = React.forwardRef<HTMLInputElement, MaskedInputProps>(
   ({ className, mask, onChange, ...props }, ref) => {
-    // The component property was missing, which was causing the error
     return (
       <InputMask
         mask={mask}
