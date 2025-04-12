@@ -1,4 +1,3 @@
-
 // Tipos para clientes
 export interface Customer {
   id: string;
@@ -74,6 +73,39 @@ export interface Part {
   location?: string;
   created_at: string;
   updated_at: string;
+}
+
+// Tipos para documentos fiscais
+export interface FiscalDocument {
+  id: string;
+  number: string;
+  type: "nf" | "nfce" | "nfs";
+  status: "pending" | "authorized" | "canceled";
+  customer_id: string;
+  customer_name: string;
+  issue_date: string;
+  total_value: number;
+  items?: DocumentItem[];
+  created_at: string;
+  updated_at: string;
+  authorization_date?: string;
+  cancelation_date?: string;
+  access_key?: string; // Chave de acesso para consulta
+  pdf_url?: string;
+  xml_url?: string;
+  qr_code?: string; // Para NFCe
+}
+
+export interface DocumentItem {
+  id: string;
+  document_id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  tax_code?: string;
+  tax_value?: number;
+  discount?: number;
 }
 
 // Tipos para estatísticas do dashboard
