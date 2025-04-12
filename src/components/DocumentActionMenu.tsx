@@ -111,7 +111,6 @@ const DocumentActionMenu = ({ document }: DocumentActionMenuProps) => {
             <DropdownMenuItem 
               onClick={handleCancel} 
               className="cursor-pointer text-destructive focus:text-destructive"
-              disabled={document.status === "canceled"}
             >
               <X className="mr-2 h-4 w-4" />
               <span>Cancelar</span>

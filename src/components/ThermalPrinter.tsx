@@ -120,22 +120,27 @@ export const ThermalPrinter = ({ document, children }: ThermalPrinterProps) => {
     printFrame.style.display = 'none';
     document.body.appendChild(printFrame);
     
-    printFrame.contentDocument?.write(receipt);
-    printFrame.contentDocument?.close();
+    // Access the document of the iframe
+    const frameDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
     
-    // Wait for content to load before printing
-    printFrame.onload = () => {
-      printFrame.contentWindow?.print();
-      // Remove the iframe after printing
-      setTimeout(() => {
-        document.body.removeChild(printFrame);
-      }, 1000);
+    if (frameDoc) {
+      frameDoc.write(receipt);
+      frameDoc.close();
       
-      toast({
-        title: "Impressão iniciada",
-        description: `O documento ${document.number} está sendo impresso.`,
-      });
-    };
+      // Wait for content to load before printing
+      printFrame.onload = () => {
+        printFrame.contentWindow?.print();
+        // Remove the iframe after printing
+        setTimeout(() => {
+          document.body.removeChild(printFrame);
+        }, 1000);
+        
+        toast({
+          title: "Impressão iniciada",
+          description: `O documento ${document.number} está sendo impresso.`,
+        });
+      };
+    }
   };
 
   return (
