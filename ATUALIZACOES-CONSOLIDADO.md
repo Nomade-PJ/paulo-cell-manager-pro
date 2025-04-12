@@ -260,28 +260,99 @@ Este documento contém um registro consolidado de todas as atualizações realiz
   - Modificação das strings em componentes de interface do usuário
   - Atualização de textos de copyright e créditos do desenvolvedor
 
+## Implementação de Navegação Inferior (Julho 2024)
+
+### 19. Barra de Navegação Inferior Flutuante
+- **Alteração:** Substituição do menu lateral por uma barra de navegação inferior flutuante
+- **Arquivos afetados:** 
+  - `paulo-cell-manager-pro/src/components/BottomNav.tsx` (Novo)
+  - `paulo-cell-manager-pro/src/components/Layout.tsx`
+  - `paulo-cell-manager-pro/src/components/Header.tsx`
+  - `paulo-cell-manager-pro/src/index.css`
+- **Detalhes:** Desenvolvimento de uma barra de navegação inferior moderna e flutuante, otimizada para uso em dispositivos móveis, com contagem de notificações e menu expansível.
+- **Solução Técnica:** 
+  - Criação de componente `BottomNav` com design responsivo e flutuante
+  - Implementada navegação principal com 4 itens prioritários: Dashboard, Clientes, Dispositivos e Serviços
+  - Desenvolvido menu expansível "Mais" para acesso às funcionalidades secundárias
+  - Integração com sistema de notificações para exibir contadores nos ícones
+  - Adicionados efeitos visuais como glass morphism, bordas arredondadas e feedback visual
+  - Adaptação do layout principal para funcionar com a navegação inferior
+  - Atualização do cabeçalho para exibir o título da página atual e avatar do usuário
+
+### 20. Melhorias na Impressão Térmica de Serviços
+- **Alteração:** Aprimoramento do comprovante de serviço para impressão térmica
+- **Arquivos afetados:** 
+  - `paulo-cell-manager-pro/src/components/ServiceThermalPrinter.tsx`
+  - `paulo-cell-manager-pro/src/pages/ServiceRegistration.tsx`
+- **Detalhes:** Diversas melhorias no formato e conteúdo do comprovante de serviço para impressão térmica, incluindo data de previsão de entrega e melhor formatação das observações.
+- **Solução Técnica:** 
+  - Adicionado campo para exibir data de previsão de entrega no comprovante
+  - Implementada melhor formatação para observações do serviço com quebras de linha adequadas
+  - Criado código de identificação de serviço (OS) para facilitar rastreamento
+  - Removido campo "Descrição" redundante para limpar a apresentação
+  - Melhorada a formatação visual com espaçamentos e bordas adequados
+  - Adicionado espaço para código de verificação/QR code
+  - Atualizado o formulário de registro de serviço para destacar a importância da data de previsão e das observações
+
+## Atualizações Recentes (Agosto 2024)
+
+### 1. Alterações na Página de Configurações
+
+- Removida a guia de "Notificações" na página de configurações
+- Simplificada a interface para mostrar apenas as guias de "Perfil" e "Aparência"
+- Mantida a funcionalidade do sino de notificação no canto superior direito
+
+### 2. Alterações na Página de Inventário
+
+#### Campos de Preço
+
+- Modificados os campos de preço (Preço de Custo e Preço de Venda) para serem opcionais
+- Removidos os asteriscos (*) dos campos de preço, indicando que não são obrigatórios
+- Alterados para exibir campos vazios em vez de zeros, permitindo entrada mais intuitiva
+- Implementada uma solução que permite apagar completamente os valores existentes ao editar um item
+- Adicionados estados separados (`costPriceInput` e `sellingPriceInput`) para gerenciar o valor exibido nos campos
+- Modificado o comportamento do input para usar `type="text"` com `inputMode="decimal"` para melhor controle da entrada
+
+#### Validação de Formulário
+
+- Atualizado o esquema de validação Zod para tornar os campos de preço opcionais
+- Alterada a validação de preço para permitir valores zero (de `positive` para `nonnegative`)
+- Melhorada a conversão de string para número nos campos de preço
+- Implementada validação para garantir apenas entrada de caracteres numéricos e ponto decimal
+
+#### Manipulação de Dados
+
+- Ajustada a manipulação de formulários para tratar corretamente valores vazios ou zero
+- Atualizada a lógica de submissão para definir valores vazios como zero no banco de dados
+- Implementada limpeza de estados quando o diálogo de edição é fechado
+
+### 3. Atualizações de Interface
+
+- Atualizado o título na página de login de "Paulo Cell Manager" para "Paulo Cell Sistema"
+- Atualizado o texto do rodapé na página de login para "Sistema Desenvolvido por Nomade-PJ © 2025"
+- Atualizado o texto do rodapé na barra lateral de "Paulo Cell Manager v1.0.0" para "Paulo Cell Sistema"
+
 ## Resumo dos Benefícios
 
 Estas atualizações garantem:
-- Um sistema de notificações intuitivo que mantém os usuários informados sobre eventos importantes
-- Uma apresentação moderna e profissional do sistema através da nova landing page
-- Experiência visual consistente e agradável com o tema escuro em toda a aplicação
-- Navegação mais intuitiva e sem erros com a estrutura de rotas corrigida
-- Melhor identificação da marca e propósito da aplicação com o novo nome
-- Acesso fácil às informações de contato do desenvolvedor para suporte e feedback
+- Uma experiência de navegação moderna e mais intuitiva, especialmente para dispositivos móveis
+- Acesso rápido às funcionalidades mais utilizadas através da barra inferior
+- Visualização clara das notificações pendentes em cada área do sistema
+- Comprovantes de serviço mais informativos e profissionais para os clientes
+- Melhor planejamento de serviços com destaque para prazos de entrega
+- Interface mais limpa e focada na tarefa atual
 
 ## Próximos Passos
 
-- Implementar relatórios fiscais mais detalhados
-- Adicionar suporte para importação/exportação de documentos em lote
-- Melhorar a integração com sistemas fiscais externos
-- Implementar dashboard fiscal com métricas de desempenho
-- Adicionar suporte para assinatura digital de documentos
-- Expandir as opções de personalização de impressão térmica
+- Implementar sincronização com o WhatsApp para envio de comprovantes
+- Adicionar suporte para impressão direta em impressoras térmicas via Bluetooth
+- Desenvolver sistema de lembretes para prazos de entrega próximos do vencimento
+- Implementar módulo de acompanhamento de status para clientes via QR code
+- Expandir opções de personalização visual da barra de navegação
 
 ---
 
-*Última atualização: Julho 2024*
+*Última atualização: Agosto 2024*
 
 ## Instruções para Atualização do Repositório
 
@@ -301,7 +372,7 @@ Para enviar estas atualizações para o repositório GitHub, siga os passos abai
 
 3. **Crie um commit com mensagem descritiva**
    ```bash
-   git commit -m "Atualização Julho 2024: Sistema de notificações, landing page e tema escuro"
+   git commit -m "Atualização Julho 2024: Barra de navegação inferior flutuante e melhorias na impressão térmica"
    ```
 
 4. **Envie as alterações para o GitHub**
@@ -317,35 +388,42 @@ O código-fonte do sistema é mantido no seguinte repositório:
 ### Principais arquivos atualizados nesta versão:
 
 1. **Novos arquivos:**
-   - `paulo-cell-manager-pro/src/pages/LandingPage.tsx`
-   - `paulo-cell-manager-pro/src/lib/notifications.ts`
+   - `paulo-cell-manager-pro/src/components/BottomNav.tsx`
 
 2. **Arquivos modificados:**
+   - `paulo-cell-manager-pro/src/components/Layout.tsx`
    - `paulo-cell-manager-pro/src/components/Header.tsx`
-   - `paulo-cell-manager-pro/src/components/Sidebar.tsx`
-   - `paulo-cell-manager-pro/src/pages/Login.tsx`
-   - `paulo-cell-manager-pro/src/App.tsx`
    - `paulo-cell-manager-pro/src/index.css`
-   - `paulo-cell-manager-pro/src/components/DocumentActionMenu.tsx`
-   - `paulo-cell-manager-pro/src/contexts/AuthContext.tsx`
+   - `paulo-cell-manager-pro/src/components/ServiceThermalPrinter.tsx`
+   - `paulo-cell-manager-pro/src/pages/ServiceRegistration.tsx`
 
 ### Possíveis conflitos:
 
 Ao fazer o merge, esteja atento para possíveis conflitos nos seguintes arquivos:
-- `paulo-cell-manager-pro/src/App.tsx` (devido às novas rotas adicionadas)
-- `paulo-cell-manager-pro/src/components/Header.tsx` (devido à implementação do sistema de notificações)
-- `paulo-cell-manager-pro/src/index.css` (devido às novas variáveis de tema e estilos)
+- `paulo-cell-manager-pro/src/components/Layout.tsx` (devido à mudança de layout)
+- `paulo-cell-manager-pro/src/index.css` (devido às novas variáveis e estilos para a barra flutuante)
+- `paulo-cell-manager-pro/src/components/Header.tsx` (devido às alterações para compatibilidade com a barra inferior)
 
-### Observações finais:
+### Atualização no servidor
 
-- **Limpeza de arquivos desnecessários:** O arquivo `paulo-cell-manager-pro/src/CREA.tsx` que estava sendo mencionado não foi encontrado no projeto atual, portanto não é necessário excluí-lo antes do commit. Se este arquivo aparecer em sua versão local ou no repositório, pode ser removido com segurança, pois ele contém apenas fragmentos incompletos de código que já estão implementados corretamente no arquivo `ServiceRegistration.tsx`.
+Para atualizar o servidor Hostinger, use os seguintes comandos no terminal SSH:
 
-- **Verificação de compatibilidade:** Certifique-se de que todas as dependências do projeto estão atualizadas antes de fazer o push para o repositório:
-  ```bash
-  npm install
-  ```
+```bash
+# Acesse o diretório do projeto
+cd /var/www/paulo-cell-manager-pro
 
-- **Teste completo antes do deploy:** Execute o projeto localmente e verifique se todas as novas funcionalidades estão funcionando como esperado:
-  ```bash
-  npm run dev
-  ``` 
+# Faça backup das alterações locais no index.css (se houver)
+cp src/index.css src/index.css.backup
+
+# Puxe as atualizações mais recentes do GitHub
+git pull origin main
+
+# Instale dependências
+npm install
+
+# Construa o projeto com as novas alterações
+npm run build
+
+# Reinicie o servidor web
+sudo systemctl restart nginx
+``` 

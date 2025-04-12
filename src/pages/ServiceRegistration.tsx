@@ -80,7 +80,7 @@ const serviceFormSchema = z.object({
   otherServiceDescription: z.string().optional(),
   technicianId: z.string().optional(),
   price: z.number().min(0, { message: "Informe o preço" }),
-  estimatedCompletionDate: z.date().optional(),
+  estimatedCompletionDate: z.date({ required_error: "A data de previsão de entrega é obrigatória" }),
   warrantyPeriod: z.enum(["1", "3", "6", "12"]).optional(),
   status: z.enum(["pending", "in_progress", "waiting_parts", "completed", "delivered"]),
   observations: z.string().optional(),
@@ -106,7 +106,7 @@ const ServiceRegistration = () => {
       otherServiceDescription: "",
       technicianId: "",
       price: 0,
-      estimatedCompletionDate: undefined,
+      estimatedCompletionDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
       warrantyPeriod: "3",
       status: "pending" as keyof typeof StatusTypes,
       observations: "",
@@ -430,7 +430,7 @@ const ServiceRegistration = () => {
                     name="estimatedCompletionDate"
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
-                        <FormLabel>Previsão de Conclusão</FormLabel>
+                        <FormLabel>Previsão de Conclusão*</FormLabel>
                         <Popover>
                           <PopoverTrigger asChild>
                             <FormControl>
@@ -456,6 +456,7 @@ const ServiceRegistration = () => {
                               onSelect={field.onChange}
                               initialFocus
                               locale={ptBR}
+                              disabled={(date) => date < new Date(Date.now() - 24 * 60 * 60 * 1000)}
                             />
                           </PopoverContent>
                         </Popover>
@@ -525,14 +526,17 @@ const ServiceRegistration = () => {
                   name="observations"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Observações</FormLabel>
+                      <FormLabel>Observações (Será exibido na impressão térmica)</FormLabel>
                       <FormControl>
                         <Textarea 
-                          placeholder="Observações sobre o serviço..." 
+                          placeholder="Observações importantes sobre o serviço, instruções especiais, detalhes do problema, etc." 
                           className="min-h-24"
                           {...field} 
                         />
                       </FormControl>
+                      <p className="text-sm text-muted-foreground">
+                        Estas informações serão exibidas no comprovante impresso para o cliente.
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}

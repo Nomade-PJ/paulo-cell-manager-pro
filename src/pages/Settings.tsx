@@ -47,18 +47,11 @@ const profileFormSchema = z.object({
   avatarUrl: z.string().optional(),
 });
 
-const notificationFormSchema = z.object({
-  emailNotifications: z.boolean().default(true),
-  smsNotifications: z.boolean().default(false),
-  weeklySummary: z.boolean().default(true),
-});
-
 const appearanceFormSchema = z.object({
   theme: z.enum(['light', 'dark']),
 });
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
-type NotificationFormValues = z.infer<typeof notificationFormSchema>;
 type AppearanceFormValues = z.infer<typeof appearanceFormSchema>;
 
 const Settings = () => {
@@ -76,15 +69,6 @@ const Settings = () => {
       name: '',
       email: user?.email || '',
       avatarUrl: '',
-    },
-  });
-
-  const notificationForm = useForm<NotificationFormValues>({
-    resolver: zodResolver(notificationFormSchema),
-    defaultValues: {
-      emailNotifications: true,
-      smsNotifications: false,
-      weeklySummary: true,
     },
   });
 
@@ -133,9 +117,6 @@ const Settings = () => {
         }
 
         if (settingsData) {
-          notificationForm.setValue('emailNotifications', settingsData.email_notifications || false);
-          notificationForm.setValue('smsNotifications', settingsData.sms_notifications || false);
-          notificationForm.setValue('weeklySummary', settingsData.weekly_summary || false);
           appearanceForm.setValue('theme', settingsData.theme as 'light' | 'dark' || 'light');
         }
 
@@ -157,7 +138,7 @@ const Settings = () => {
     if (user) {
       fetchUserData();
     }
-  }, [user, profileForm, notificationForm, appearanceForm]);
+  }, [user, profileForm, appearanceForm]);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!user) return;
@@ -253,39 +234,6 @@ const Settings = () => {
     }
   };
 
-  const onNotificationSubmit = async (data: NotificationFormValues) => {
-    if (!user) return;
-    
-    setIsLoading(true);
-    try {
-      const { error } = await supabase
-        .from('settings')
-        .upsert({
-          user_id: user.id,
-          email_notifications: data.emailNotifications,
-          sms_notifications: data.smsNotifications,
-          weekly_summary: data.weeklySummary,
-          updated_at: new Date().toISOString(),
-        });
-        
-      if (error) throw error;
-      
-      toast({
-        title: "Notificações atualizadas",
-        description: "Suas preferências de notificação foram atualizadas.",
-      });
-    } catch (error) {
-      console.error('Error updating notification settings:', error);
-      toast({
-        variant: "destructive",
-        title: "Erro",
-        description: "Não foi possível atualizar as preferências de notificação.",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const onAppearanceSubmit = async (data: AppearanceFormValues) => {
     if (!user) return;
     
@@ -329,9 +277,8 @@ const Settings = () => {
       <h1 className="text-2xl font-bold">Configurações</h1>
       
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid grid-cols-3 w-full max-w-md">
+        <TabsList className="grid grid-cols-2 w-full max-w-md">
           <TabsTrigger value="profile">Perfil</TabsTrigger>
-          <TabsTrigger value="notifications">Notificações</TabsTrigger>
           <TabsTrigger value="appearance">Aparência</TabsTrigger>
         </TabsList>
         
@@ -424,89 +371,6 @@ const Settings = () => {
                   
                   <Button type="submit" disabled={isLoading}>
                     {isLoading ? "Salvando..." : "Salvar alterações"}
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="notifications">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notificações</CardTitle>
-              <CardDescription>
-                Configure suas preferências de notificação.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form {...notificationForm}>
-                <form onSubmit={notificationForm.handleSubmit(onNotificationSubmit)} className="space-y-8">
-                  <FormField
-                    control={notificationForm.control}
-                    name="emailNotifications"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-base">Notificações por Email</FormLabel>
-                          <FormDescription>
-                            Receba atualizações e alertas por email.
-                          </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={notificationForm.control}
-                    name="smsNotifications"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-base">Notificações por SMS</FormLabel>
-                          <FormDescription>
-                            Receba atualizações e alertas por mensagem de texto.
-                          </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={notificationForm.control}
-                    name="weeklySummary"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-base">Resumo Semanal</FormLabel>
-                          <FormDescription>
-                            Receba um resumo semanal das atividades.
-                          </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <Button type="submit" disabled={isLoading}>
-                    {isLoading ? "Salvando..." : "Salvar preferências"}
                   </Button>
                 </form>
               </Form>

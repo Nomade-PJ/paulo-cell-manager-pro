@@ -1,6 +1,8 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
+import { format } from "date-fns";
+import { ptBR } from 'date-fns/locale';
 
 interface ServiceThermalPrinterProps {
   service: any; // Service data structure
@@ -40,6 +42,30 @@ export const ServiceThermalPrinter = ({ service, children }: ServiceThermalPrint
       style: 'currency',
       currency: 'BRL'
     }).format(service.price || 0);
+    
+    // Formatar as datas
+    const createdDate = new Date(service.created_at).toLocaleDateString('pt-BR');
+    
+    // Formatar data de previsão de entrega se existir
+    let estimatedDate = "Não informada";
+    if (service.estimated_completion_date) {
+      try {
+        estimatedDate = new Date(service.estimated_completion_date).toLocaleDateString('pt-BR');
+      } catch (error) {
+        console.error("Erro ao formatar data de previsão:", error);
+      }
+    }
+    
+    // Gerar ID de ordem formatado para exibição
+    const orderNumber = service.id ? service.id.substring(0, 8).toUpperCase() : "N/A";
+    
+    // Processar observações para formatação adequada (quebras de linha, remoção de caracteres especiais)
+    const formattedObservations = service.observations 
+      ? service.observations
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\n/g, '<br>')
+      : "";
 
     const receipt = `
       <html>
@@ -77,6 +103,36 @@ export const ServiceThermalPrinter = ({ service, children }: ServiceThermalPrint
           .align-right {
             text-align: right;
           }
+          .observations {
+            white-space: pre-wrap;
+            font-size: 9pt;
+            margin-top: 5px;
+            padding: 5px;
+            border-left: 1px solid #ccc;
+          }
+          .order-number {
+            font-weight: bold;
+            font-size: 14pt;
+            text-align: center;
+            margin-bottom: 5px;
+          }
+          .small-text {
+            font-size: 8pt;
+          }
+          .centered {
+            text-align: center;
+          }
+          .qr-placeholder {
+            margin: 10px auto;
+            width: 70px;
+            height: 70px;
+            border: 1px solid #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8pt;
+            text-align: center;
+          }
           /* Hide useless items for printing */
           @media print {
             html, body {
@@ -98,6 +154,8 @@ export const ServiceThermalPrinter = ({ service, children }: ServiceThermalPrint
           ORDEM DE SERVIÇO
         </div>
         
+        <div class="order-number">OS: ${orderNumber}</div>
+        
         <div class="divider"></div>
         
         <div class="info">
@@ -107,7 +165,10 @@ export const ServiceThermalPrinter = ({ service, children }: ServiceThermalPrint
           <span class="bold">Dispositivo:</span> ${service.devices ? `${service.devices.brand} ${service.devices.model}` : "Dispositivo não encontrado"}
         </div>
         <div class="info">
-          <span class="bold">Data:</span> ${new Date(service.created_at).toLocaleDateString('pt-BR')}
+          <span class="bold">Data de Registro:</span> ${createdDate}
+        </div>
+        <div class="info">
+          <span class="bold">Previsão de Entrega:</span> ${estimatedDate}
         </div>
         <div class="info">
           <span class="bold">Status:</span> ${status[service.status] || service.status}
@@ -118,9 +179,13 @@ export const ServiceThermalPrinter = ({ service, children }: ServiceThermalPrint
         <div class="info">
           <span class="bold">Serviço:</span> ${serviceName}
         </div>
+        
+        ${service.observations ? `
         <div class="info">
-          <span class="bold">Descrição:</span> ${service.description || "Sem descrição"}
+          <span class="bold">Observações:</span>
+          <div class="observations">${formattedObservations}</div>
         </div>
+        ` : ''}
         
         <div class="divider"></div>
         
@@ -130,12 +195,18 @@ export const ServiceThermalPrinter = ({ service, children }: ServiceThermalPrint
         
         <div class="divider"></div>
         
+        <div class="centered">
+          <div class="qr-placeholder">
+            Código de verificação: ${orderNumber}
+          </div>
+        </div>
+        
         <div class="footer">
           Comprovante de Serviço
           <br />
-          Paulo Cell Manager
+          Sistema Desenvolvido por Nomade-PJ © 2025
           <br />
-          ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}
+          <span class="small-text">${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}</span>
         </div>
       </body>
       </html>

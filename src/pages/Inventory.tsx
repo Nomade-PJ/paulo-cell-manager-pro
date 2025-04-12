@@ -81,8 +81,8 @@ const inventoryFormSchema = z.object({
   category: z.string().min(1, { message: "Selecione uma categoria" }),
   customCategory: z.string().optional(),
   compatibility: z.string().optional(),
-  costPrice: z.number().positive({ message: "Preço de custo deve ser positivo" }),
-  sellingPrice: z.number().positive({ message: "Preço de venda deve ser positivo" }),
+  costPrice: z.number().nonnegative({ message: "Preço de custo não pode ser negativo" }).optional(),
+  sellingPrice: z.number().nonnegative({ message: "Preço de venda não pode ser negativo" }).optional(),
   quantity: z.number().int().min(0, { message: "Quantidade não pode ser negativa" }),
   minimumStock: z.number().int().min(0, { message: "Estoque mínimo não pode ser negativo" }),
 });
@@ -114,6 +114,10 @@ const Inventory = () => {
   const [isGeneratingSku, setIsGeneratingSku] = useState(false);
   const [generatedSku, setGeneratedSku] = useState<string>("");
   
+  // Estados para controlar os valores dos campos de preço
+  const [costPriceInput, setCostPriceInput] = useState<string>("");
+  const [sellingPriceInput, setSellingPriceInput] = useState<string>("");
+  
   const form = useForm<InventoryFormValues>({
     resolver: zodResolver(inventoryFormSchema),
     defaultValues: {
@@ -121,8 +125,8 @@ const Inventory = () => {
       category: "",
       customCategory: "",
       compatibility: "",
-      costPrice: 0,
-      sellingPrice: 0,
+      costPrice: undefined,
+      sellingPrice: undefined,
       quantity: 0,
       minimumStock: 0,
     },
@@ -135,8 +139,8 @@ const Inventory = () => {
       category: "",
       customCategory: "",
       compatibility: "",
-      costPrice: 0,
-      sellingPrice: 0,
+      costPrice: undefined,
+      sellingPrice: undefined,
       quantity: 0,
       minimumStock: 0,
     },
@@ -211,13 +215,17 @@ const Inventory = () => {
   
   const handleEdit = (item: InventoryItem) => {
     setCurrentItem(item);
+    // Definir os valores iniciais dos campos de input
+    setCostPriceInput(item.cost_price === 0 ? "" : String(item.cost_price));
+    setSellingPriceInput(item.selling_price === 0 ? "" : String(item.selling_price));
+    
     editForm.reset({
       name: item.name,
       category: item.category,
       customCategory: item.custom_category || "",
       compatibility: item.compatibility || "",
-      costPrice: item.cost_price,
-      sellingPrice: item.selling_price,
+      costPrice: item.cost_price === 0 ? undefined : item.cost_price,
+      sellingPrice: item.selling_price === 0 ? undefined : item.selling_price,
       quantity: item.quantity,
       minimumStock: item.minimum_stock,
     });
@@ -276,8 +284,8 @@ const Inventory = () => {
         category: data.category,
         custom_category: data.category === 'outro' ? data.customCategory : null,
         compatibility: data.compatibility || null,
-        cost_price: data.costPrice,
-        selling_price: data.sellingPrice,
+        cost_price: data.costPrice || 0,
+        selling_price: data.sellingPrice || 0,
         quantity: data.quantity,
         minimum_stock: data.minimumStock,
         created_at: new Date().toISOString(),
@@ -318,8 +326,8 @@ const Inventory = () => {
         category: data.category,
         custom_category: data.category === 'outro' ? data.customCategory : null,
         compatibility: data.compatibility || null,
-        cost_price: data.costPrice,
-        selling_price: data.sellingPrice,
+        cost_price: data.costPrice || 0,
+        selling_price: data.sellingPrice || 0,
         quantity: data.quantity,
         minimum_stock: data.minimumStock,
         updated_at: new Date().toISOString()
@@ -340,6 +348,9 @@ const Inventory = () => {
       setEditItemDialogOpen(false);
       editForm.reset();
       setCurrentItem(null);
+      // Limpar os estados de input
+      setCostPriceInput("");
+      setSellingPriceInput("");
       setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error("Erro ao atualizar item:", error);
@@ -584,9 +595,20 @@ const Inventory = () => {
                     name="costPrice"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Preço de Custo (R$)*</FormLabel>
+                        <FormLabel>Preço de Custo (R$)</FormLabel>
                         <FormControl>
-                          <Input type="number" step="0.01" {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} />
+                          <Input 
+                            type="text" 
+                            inputMode="decimal"
+                            value={field.value === 0 || field.value === undefined ? "" : field.value}
+                            onChange={(e) => {
+                              if (e.target.value === "") {
+                                field.onChange(undefined);
+                              } else if (e.target.value.match(/^\d*\.?\d*$/)) {
+                                field.onChange(e.target.value === "" ? undefined : parseFloat(e.target.value));
+                              }
+                            }}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -598,9 +620,20 @@ const Inventory = () => {
                     name="sellingPrice"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Preço de Venda (R$)*</FormLabel>
+                        <FormLabel>Preço de Venda (R$)</FormLabel>
                         <FormControl>
-                          <Input type="number" step="0.01" {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} />
+                          <Input 
+                            type="text" 
+                            inputMode="decimal"
+                            value={field.value === 0 || field.value === undefined ? "" : field.value}
+                            onChange={(e) => {
+                              if (e.target.value === "") {
+                                field.onChange(undefined);
+                              } else if (e.target.value.match(/^\d*\.?\d*$/)) {
+                                field.onChange(e.target.value === "" ? undefined : parseFloat(e.target.value));
+                              }
+                            }}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -652,7 +685,16 @@ const Inventory = () => {
         </DialogContent>
       </Dialog>
       
-      <Dialog open={editItemDialogOpen} onOpenChange={setEditItemDialogOpen}>
+      <Dialog open={editItemDialogOpen} onOpenChange={(open) => {
+        setEditItemDialogOpen(open);
+        if (!open) {
+          // Limpar os estados quando o diálogo for fechado
+          setCostPriceInput("");
+          setSellingPriceInput("");
+          setCurrentItem(null);
+          editForm.reset();
+        }
+      }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Editar Item</DialogTitle>
@@ -750,9 +792,22 @@ const Inventory = () => {
                       name="costPrice"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Preço de Custo (R$)*</FormLabel>
+                          <FormLabel>Preço de Custo (R$)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.01" {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} />
+                            <Input 
+                              type="text" 
+                              inputMode="decimal"
+                              value={costPriceInput}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setCostPriceInput(value);
+                                if (value === "") {
+                                  field.onChange(undefined);
+                                } else if (value.match(/^\d*\.?\d*$/)) {
+                                  field.onChange(value === "" ? undefined : parseFloat(value));
+                                }
+                              }}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -764,9 +819,22 @@ const Inventory = () => {
                       name="sellingPrice"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Preço de Venda (R$)*</FormLabel>
+                          <FormLabel>Preço de Venda (R$)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.01" {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} />
+                            <Input 
+                              type="text" 
+                              inputMode="decimal"
+                              value={sellingPriceInput}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setSellingPriceInput(value);
+                                if (value === "") {
+                                  field.onChange(undefined);
+                                } else if (value.match(/^\d*\.?\d*$/)) {
+                                  field.onChange(value === "" ? undefined : parseFloat(value));
+                                }
+                              }}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
