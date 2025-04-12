@@ -101,8 +101,7 @@
 /* Estilo específico para landing page */
 .landing-page {
   font-family: 'Inter', sans-serif;
-  background: var(--landing-gradient);
-  color: hsl(210 40% 98%);
+  @apply bg-sidebar text-sidebar-foreground;
 }
 
 .feature-card {

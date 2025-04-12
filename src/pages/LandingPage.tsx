@@ -19,7 +19,7 @@ const LandingPage = () => {
   };
 
   return (
-    <div className="landing-page min-h-screen flex flex-col items-center justify-between p-6">
+    <div className="landing-page min-h-screen flex flex-col items-center justify-between p-6 bg-sidebar text-sidebar-foreground">
       {/* Cabeçalho e conteúdo principal */}
       <div className="w-full max-w-4xl mx-auto flex-1 flex flex-col items-center justify-center text-center">
         {/* Ícone do Smartphone */}
@@ -101,7 +101,7 @@ const LandingPage = () => {
 
       {/* Developer Contact Dialog */}
       <Dialog open={developerContactOpen} onOpenChange={setDeveloperContactOpen}>
-        <DialogContent className="sm:max-w-md" style={{ background: 'hsl(222 47% 11%)' }}>
+        <DialogContent className="sm:max-w-md bg-sidebar text-sidebar-foreground">
           <DialogHeader>
             <DialogTitle className="text-xl text-gray-100">Contato com o Desenvolvedor</DialogTitle>
             <DialogDescription className="text-gray-300">
