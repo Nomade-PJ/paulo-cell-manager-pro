@@ -169,7 +169,7 @@ export default function UserRegistration() {
         });
         
         // Navigate to device registration with the client ID
-        navigate(`/device-registration/${clientId}`);
+        navigate(`/dashboard/device-registration/${clientId}`);
       } else {
         // Create new customer
         const { data: insertedData, error } = await supabase
@@ -189,7 +189,7 @@ export default function UserRegistration() {
         });
         
         // Navigate to device registration with the newly created client ID
-        navigate(`/device-registration/${insertedData.id}`);
+        navigate(`/dashboard/device-registration/${insertedData.id}`);
       }
     } catch (error) {
       console.error('Error saving customer:', error);
@@ -460,7 +460,7 @@ export default function UserRegistration() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => navigate('/clients')}
+                  onClick={() => navigate('/dashboard/clients')}
                 >
                   Cancelar
                 </Button>

@@ -109,7 +109,7 @@ const DeviceRegistration = () => {
             title: "Erro",
             description: "ID do cliente não encontrado",
           });
-          navigate("/clients");
+          navigate("/dashboard/clients");
           return;
         }
         
@@ -167,7 +167,7 @@ const DeviceRegistration = () => {
           title: "Erro ao carregar dados",
           description: "Não foi possível carregar os dados do cliente ou dispositivo.",
         });
-        navigate("/clients");
+        navigate("/dashboard/clients");
       } finally {
         setIsLoading(false);
       }
@@ -238,7 +238,7 @@ const DeviceRegistration = () => {
       }
       
       // Navigate to the next step with client ID and device ID
-      navigate(`/service-registration/${clientId}/${newDeviceId}`);
+      navigate(`/dashboard/service-registration/${clientId}/${newDeviceId}`);
     } catch (error) {
       console.error("Erro ao salvar dispositivo:", error);
       toast({
@@ -255,17 +255,17 @@ const DeviceRegistration = () => {
     try {
       if (isEditing) {
         // Se estiver editando, voltar para a lista de dispositivos
-        navigate("/devices");
+        navigate("/dashboard/devices");
       } else if (clientId) {
         // Se estiver criando novo dispositivo, voltar para os dados do cliente
-        navigate(`/user-registration?id=${clientId}`);
+        navigate(`/dashboard/user-registration?id=${clientId}`);
       } else {
         // Fallback
-        navigate("/clients");
+        navigate("/dashboard/clients");
       }
     } catch (error) {
       console.error("Erro na navegação:", error);
-      navigate("/clients");
+      navigate("/dashboard/clients");
     }
   };
   

@@ -138,7 +138,7 @@ const Devices = () => {
   };
 
   const handleEditDevice = (deviceId: string, customerId: string) => {
-    navigate(`/device-registration/${customerId}/${deviceId}`);
+    navigate(`/dashboard/device-registration/${customerId}/${deviceId}`);
   };
   
   const handleViewDevice = (device: Device) => {
@@ -196,7 +196,7 @@ const Devices = () => {
 
   const handleAddDevice = () => {
     // Navegar para a página de clientes com uma query param indicando que queremos selecionar um cliente para criar um dispositivo
-    navigate('/clients?action=select_for_device');
+    navigate('/dashboard/clients?action=select_for_device');
   };
 
   // Mobile device card component

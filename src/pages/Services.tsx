@@ -181,7 +181,7 @@ const Services = () => {
             </Select>
           </div>
           
-          <Button className="w-full sm:w-auto" onClick={() => navigate("/user-registration")}>
+          <Button className="w-full sm:w-auto" onClick={() => navigate("/dashboard/user-registration")}>
             <Plus className="h-4 w-4 mr-2" /> Novo Serviço
           </Button>
         </div>

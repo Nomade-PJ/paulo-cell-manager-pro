@@ -91,15 +91,15 @@ const Clients = () => {
   
   // Handle client selection for different actions
   const handleCreateDeviceForClient = (clientId: string) => {
-    navigate(`/device-registration/${clientId}`);
+    navigate(`/dashboard/device-registration/${clientId}`);
   };
   
   const handleNewClient = () => {
-    navigate("/user-registration");
+    navigate("/dashboard/user-registration");
   };
   
   const handleEditClient = (clientId: string) => {
-    navigate(`/user-registration?id=${clientId}`);
+    navigate(`/dashboard/user-registration?id=${clientId}`);
   };
   
   const handleDeleteClient = (clientId: string) => {
@@ -189,7 +189,7 @@ const Clients = () => {
         </h1>
         <div className="flex gap-2">
           {action === 'select_for_device' && (
-            <Button variant="outline" onClick={() => navigate('/devices')}>
+            <Button variant="outline" onClick={() => navigate('/dashboard/devices')}>
               Cancelar
             </Button>
           )}

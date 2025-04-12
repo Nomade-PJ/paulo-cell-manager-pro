@@ -120,7 +120,7 @@ const ServiceRegistration = () => {
         title: "Erro",
         description: "Informações do cliente ou dispositivo não encontradas",
       });
-      navigate("/clients");
+      navigate("/dashboard/clients");
       return;
     }
     
@@ -188,7 +188,7 @@ const ServiceRegistration = () => {
           title: "Erro ao carregar dados",
           description: "Não foi possível carregar os dados necessários.",
         });
-        navigate("/clients");
+        navigate("/dashboard/clients");
       } finally {
         setIsLoading(false);
       }
@@ -261,8 +261,8 @@ const ServiceRegistration = () => {
         });
       }
       
-      // Navigate back to services list
-      navigate("/services");
+      // Navigate to services list
+      navigate("/dashboard/services");
     } catch (error) {
       console.error("Erro ao salvar serviço:", error);
       toast({
@@ -277,16 +277,16 @@ const ServiceRegistration = () => {
   
   const goBack = () => {
     try {
-      if (clientId && deviceId) {
-        navigate(`/device-registration/${clientId}/${deviceId}`);
+      if (deviceId) {
+        navigate(`/dashboard/device-registration/${clientId}/${deviceId}`);
       } else if (clientId) {
-        navigate(`/device-registration/${clientId}`);
+        navigate(`/dashboard/device-registration/${clientId}`);
       } else {
-        navigate('/clients');
+        navigate('/dashboard/clients');
       }
     } catch (error) {
-      console.error('Erro na navegação:', error);
-      navigate('/clients');
+      console.error("Erro na navegação:", error);
+      navigate('/dashboard/clients');
     }
   };
   
