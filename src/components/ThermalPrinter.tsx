@@ -116,9 +116,9 @@ export const ThermalPrinter = ({ document, children }: ThermalPrinterProps) => {
     `;
 
     // Create a hidden iframe for printing
-    const printFrame = document.createElement('iframe');
+    const printFrame = window.document.createElement('iframe');
     printFrame.style.display = 'none';
-    document.body.appendChild(printFrame);
+    window.document.body.appendChild(printFrame);
     
     // Access the document of the iframe
     const frameDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
@@ -132,7 +132,7 @@ export const ThermalPrinter = ({ document, children }: ThermalPrinterProps) => {
         printFrame.contentWindow?.print();
         // Remove the iframe after printing
         setTimeout(() => {
-          document.body.removeChild(printFrame);
+          window.document.body.removeChild(printFrame);
         }, 1000);
         
         toast({
