@@ -1,5 +1,6 @@
+
 import { useState } from "react";
-import { FileText, FilePlus, Search, Calendar, Download, Printer, Download as DownloadIcon, RefreshCw, X as Cancel, Eye, Filter, ArrowRight } from "lucide-react";
+import { FileText, FilePlus, Search, Calendar, Download, RefreshCw, X, Eye, Filter, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -15,6 +16,8 @@ import { ptBR } from "date-fns/locale";
 import { FiscalDocument } from "@/types";
 import DocumentActionMenu from "@/components/DocumentActionMenu";
 import { ThermalPrinter } from "@/components/ThermalPrinter";
+import NewDocumentDialog from "@/components/NewDocumentDialog";
+import { toast } from "@/hooks/use-toast";
 
 const mockDocuments: FiscalDocument[] = [
   {
@@ -76,12 +79,16 @@ const mockDocuments: FiscalDocument[] = [
 ];
 
 const Documents = () => {
+  const [documents, setDocuments] = useState<FiscalDocument[]>(mockDocuments);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
   const [currentTab, setCurrentTab] = useState("all");
+  const [certificateStatus, setCertificateStatus] = useState<"active" | "expiring" | "expired">("active");
+  const [certificateExpiry, setCertificateExpiry] = useState("12/12/2025");
+  const [monthlyCount, setMonthlyCount] = useState(42);
 
-  const filteredDocuments = mockDocuments.filter((doc) => {
+  const filteredDocuments = documents.filter((doc) => {
     if (currentTab !== "all" && doc.type !== currentTab) return false;
     
     if (searchTerm && 
@@ -130,16 +137,116 @@ const Documents = () => {
     }
   };
 
+  const handleDocumentUpdated = () => {
+    // In a real application, this would re-fetch the documents from the API
+    // For this demo, we'll update the mock data to simulate document status changes
+    
+    const updatedDocuments = documents.map(doc => {
+      // Simulate some random changes for demo purposes
+      if (doc.status === "pending" && Math.random() > 0.5) {
+        return { ...doc, status: "authorized", authorization_date: new Date().toISOString() };
+      }
+      return doc;
+    });
+    
+    setDocuments(updatedDocuments);
+  };
+
+  const handleNewDocument = () => {
+    // In a real application, this would re-fetch the documents from the API
+    // For this demo, we'll add a new mock document
+    
+    const newDocument: FiscalDocument = {
+      id: `new-${Date.now()}`,
+      number: `NF-${String(documents.length + 1).padStart(5, '0')}`,
+      type: "nf",
+      status: "authorized",
+      customer_id: `cus_new_${Date.now()}`,
+      customer_name: "Novo Cliente Ltda",
+      issue_date: new Date().toISOString(),
+      total_value: Math.floor(Math.random() * 5000) + 100,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      authorization_date: new Date().toISOString(),
+      access_key: `3525${Date.now()}`,
+    };
+    
+    setDocuments([newDocument, ...documents]);
+    setMonthlyCount(monthlyCount + 1);
+    
+    toast({
+      title: "Nova nota fiscal emitida",
+      description: `A nota ${newDocument.number} foi emitida com sucesso.`,
+    });
+  };
+
+  const handleExportDocuments = () => {
+    toast({
+      title: "Exportação iniciada",
+      description: "Os documentos estão sendo exportados para Excel.",
+    });
+    
+    // Simulate export completion
+    setTimeout(() => {
+      toast({
+        title: "Exportação concluída",
+        description: "Os documentos foram exportados com sucesso.",
+      });
+    }, 1500);
+  };
+
+  const handleGenerateReports = () => {
+    toast({
+      title: "Redirecionando",
+      description: "Indo para a página de relatórios fiscais.",
+    });
+  };
+
+  const checkCertificate = () => {
+    // Simulate checking digital certificate
+    toast({
+      title: "Verificando certificado",
+      description: "Validando status do certificado digital...",
+    });
+    
+    // Simulate response
+    setTimeout(() => {
+      const daysLeft = Math.floor(Math.random() * 100);
+      
+      if (daysLeft < 15) {
+        setCertificateStatus("expired");
+        setCertificateExpiry("Expirado");
+        toast({
+          title: "Certificado expirado",
+          description: "Seu certificado digital está expirado. Renove imediatamente.",
+          variant: "destructive",
+        });
+      } else if (daysLeft < 30) {
+        setCertificateStatus("expiring");
+        setCertificateExpiry(`${daysLeft}/12/2025`);
+        toast({
+          title: "Certificado expirando",
+          description: `Seu certificado digital expira em ${daysLeft} dias. Renove em breve.`,
+          variant: "warning",
+        });
+      } else {
+        setCertificateStatus("active");
+        setCertificateExpiry("12/12/2025");
+        toast({
+          title: "Certificado válido",
+          description: "Seu certificado digital está válido e atualizado.",
+        });
+      }
+    }, 1500);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader 
         title="Documentos Fiscais"
         description="Gerencie notas fiscais e documentos fiscais eletrônicos."
         actions={
-          <Button className="flex items-center gap-2">
-            <FilePlus className="h-4 w-4" />
-            Emitir Nota
-          </Button>
+          <NewDocumentDialog onDocumentCreated={handleNewDocument} />
         }
       >
         <FileText className="h-6 w-6" />
@@ -219,6 +326,7 @@ const Documents = () => {
                 getStatusBadge={getStatusBadge} 
                 getDocumentTypeLabel={getDocumentTypeLabel}
                 formatCurrency={formatCurrency}
+                onDocumentUpdated={handleDocumentUpdated}
               />
             </TabsContent>
             <TabsContent value="nf" className="mt-0">
@@ -227,6 +335,7 @@ const Documents = () => {
                 getStatusBadge={getStatusBadge} 
                 getDocumentTypeLabel={getDocumentTypeLabel}
                 formatCurrency={formatCurrency}
+                onDocumentUpdated={handleDocumentUpdated}
               />
             </TabsContent>
             <TabsContent value="nfce" className="mt-0">
@@ -235,6 +344,7 @@ const Documents = () => {
                 getStatusBadge={getStatusBadge} 
                 getDocumentTypeLabel={getDocumentTypeLabel}
                 formatCurrency={formatCurrency}
+                onDocumentUpdated={handleDocumentUpdated}
               />
             </TabsContent>
             <TabsContent value="nfs" className="mt-0">
@@ -243,19 +353,20 @@ const Documents = () => {
                 getStatusBadge={getStatusBadge} 
                 getDocumentTypeLabel={getDocumentTypeLabel}
                 formatCurrency={formatCurrency}
+                onDocumentUpdated={handleDocumentUpdated}
               />
             </TabsContent>
           </CardContent>
           <CardFooter className="flex justify-between">
             <div className="text-sm text-muted-foreground">
-              Exibindo {filteredDocuments.length} de {mockDocuments.length} documentos
+              Exibindo {filteredDocuments.length} de {documents.length} documentos
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" className="flex items-center gap-2">
+              <Button variant="outline" className="flex items-center gap-2" onClick={handleExportDocuments}>
                 <Download className="h-4 w-4" />
                 Exportar
               </Button>
-              <Button className="flex items-center gap-2">
+              <Button className="flex items-center gap-2" onClick={handleGenerateReports}>
                 <ArrowRight className="h-4 w-4" />
                 Relatórios
               </Button>
@@ -271,21 +382,44 @@ const Documents = () => {
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="border rounded-lg p-4">
-            <h3 className="font-medium mb-2">Certificado Digital</h3>
+            <h3 className="font-medium mb-2 flex justify-between">
+              <span>Certificado Digital</span>
+              <button 
+                onClick={checkCertificate}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                Verificar
+              </button>
+            </h3>
             <div className="flex items-center justify-between">
-              <span className="text-sm">Valido até 12/12/2025</span>
-              <Badge className="bg-green-500">Ativo</Badge>
+              <span className="text-sm">Valido até {certificateExpiry}</span>
+              <Badge 
+                className={
+                  certificateStatus === "active" ? "bg-green-500" :
+                  certificateStatus === "expiring" ? "bg-yellow-500" :
+                  "bg-red-500"
+                }
+              >
+                {certificateStatus === "active" ? "Ativo" :
+                 certificateStatus === "expiring" ? "Expirando" :
+                 "Expirado"}
+              </Badge>
             </div>
           </div>
           <div className="border rounded-lg p-4">
             <h3 className="font-medium mb-2">Notas Emitidas (Mês)</h3>
             <div className="flex items-center justify-between">
-              <span className="text-2xl font-bold">42</span>
+              <span className="text-2xl font-bold">{monthlyCount}</span>
               <span className="text-sm text-green-600">+12% que mês anterior</span>
             </div>
           </div>
           <div className="border rounded-lg p-4">
-            <h3 className="font-medium mb-2">Anotações Fiscais</h3>
+            <h3 className="font-medium mb-2 flex justify-between">
+              <span>Anotações Fiscais</span>
+              <button className="text-sm text-blue-600 hover:underline">
+                Editar
+              </button>
+            </h3>
             <p className="text-sm text-muted-foreground">Verificar obrigações acessórias até 20/04</p>
           </div>
         </CardContent>
@@ -299,9 +433,16 @@ interface DocumentsTableProps {
   getStatusBadge: (status: string) => JSX.Element;
   getDocumentTypeLabel: (type: string) => string;
   formatCurrency: (value: number) => string;
+  onDocumentUpdated?: () => void;
 }
 
-const DocumentsTable = ({ documents, getStatusBadge, getDocumentTypeLabel, formatCurrency }: DocumentsTableProps) => {
+const DocumentsTable = ({ 
+  documents, 
+  getStatusBadge, 
+  getDocumentTypeLabel, 
+  formatCurrency,
+  onDocumentUpdated
+}: DocumentsTableProps) => {
   return (
     <div className="rounded-md border">
       <Table>
@@ -327,7 +468,7 @@ const DocumentsTable = ({ documents, getStatusBadge, getDocumentTypeLabel, forma
                 <TableCell>{formatCurrency(doc.total_value)}</TableCell>
                 <TableCell>{getStatusBadge(doc.status)}</TableCell>
                 <TableCell className="text-right">
-                  <DocumentActionMenu document={doc} />
+                  <DocumentActionMenu document={doc} onDocumentUpdated={onDocumentUpdated} />
                 </TableCell>
               </TableRow>
             ))
