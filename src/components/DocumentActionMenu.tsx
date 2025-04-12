@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { FiscalDocument } from "@/types";
-import { ThermalPrinter } from "./ThermalPrinter";
+import { ThermalPrinter } from "@/components/ThermalPrinter";
 import { toast } from "@/hooks/use-toast";
 
 interface DocumentActionMenuProps {
@@ -80,10 +80,12 @@ const DocumentActionMenu = ({ document }: DocumentActionMenuProps) => {
           <span>Ver detalhes</span>
         </DropdownMenuItem>
         
-        <ThermalPrinter document={document}>
-          <Printer className="mr-2 h-4 w-4" />
-          <span>Imprimir térmica</span>
-        </ThermalPrinter>
+        <DropdownMenuItem asChild>
+          <ThermalPrinter document={document}>
+            <Printer className="mr-2 h-4 w-4" />
+            <span>Imprimir térmica</span>
+          </ThermalPrinter>
+        </DropdownMenuItem>
         
         <DropdownMenuItem onClick={handleDownloadPDF} className="cursor-pointer">
           <Download className="mr-2 h-4 w-4" />
