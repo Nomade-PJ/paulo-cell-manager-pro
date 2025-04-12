@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabaseClient";
+import PatternLock from "@/components/PatternLock";
 import {
   Form,
   FormControl,
@@ -98,19 +99,20 @@ const DeviceRegistration = () => {
   });
   
   useEffect(() => {
-    if (!clientId) {
-      toast({
-        variant: "destructive",
-        title: "Erro",
-        description: "ID do cliente não encontrado",
-      });
-      navigate("/user-registration");
-      return;
-    }
-    
     const fetchData = async () => {
       setIsLoading(true);
       try {
+        if (!clientId) {
+          console.warn("ID do cliente não encontrado");
+          toast({
+            variant: "destructive",
+            title: "Erro",
+            description: "ID do cliente não encontrado",
+          });
+          navigate("/clients");
+          return;
+        }
+        
         // Fetch client data
         const { data: clientData, error: clientError } = await supabase
           .from("customers")
@@ -118,13 +120,17 @@ const DeviceRegistration = () => {
           .eq('id', clientId)
           .single();
           
-        if (clientError) throw clientError;
+        if (clientError) {
+          console.error("Erro ao buscar dados do cliente:", clientError);
+          throw clientError;
+        }
         
         setClientData(clientData);
         form.setValue("clientName", clientData.name);
         
         // Check if we're editing an existing device
         if (deviceId) {
+          console.log("Editando dispositivo existente:", deviceId);
           setIsEditing(true);
           const { data: deviceData, error: deviceError } = await supabase
             .from("devices")
@@ -132,7 +138,12 @@ const DeviceRegistration = () => {
             .eq('id', deviceId)
             .single();
             
-          if (deviceError) throw deviceError;
+          if (deviceError) {
+            console.error("Erro ao buscar dados do dispositivo:", deviceError);
+            throw deviceError;
+          }
+          
+          console.log("Dados do dispositivo recuperados:", deviceData);
           
           // Fill form with device data - ensure types match the schema
           form.setValue("deviceType", deviceData.device_type as keyof typeof DeviceType);
@@ -145,6 +156,9 @@ const DeviceRegistration = () => {
           form.setValue("passwordType", deviceData.password_type as keyof typeof PasswordType);
           form.setValue("password", deviceData.password || "");
           form.setValue("observations", deviceData.observations || "");
+        } else {
+          console.log("Criando novo dispositivo para o cliente:", clientId);
+          setIsEditing(false);
         }
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
@@ -164,6 +178,7 @@ const DeviceRegistration = () => {
 
   // Show password field only if the password type requires it
   const shouldShowPasswordField = form.watch("passwordType") !== "none";
+  const isPatternPasswordType = form.watch("passwordType") === "pattern";
   
   const onSubmit = async (data: DeviceFormValues) => {
     if (!clientId) return;
@@ -237,7 +252,21 @@ const DeviceRegistration = () => {
   };
   
   const goBack = () => {
-    navigate(`/user-registration?id=${clientId}`);
+    try {
+      if (isEditing) {
+        // Se estiver editando, voltar para a lista de dispositivos
+        navigate("/devices");
+      } else if (clientId) {
+        // Se estiver criando novo dispositivo, voltar para os dados do cliente
+        navigate(`/user-registration?id=${clientId}`);
+      } else {
+        // Fallback
+        navigate("/clients");
+      }
+    } catch (error) {
+      console.error("Erro na navegação:", error);
+      navigate("/clients");
+    }
   };
   
   return (
@@ -461,18 +490,29 @@ const DeviceRegistration = () => {
                     control={form.control}
                     name="password"
                     render={({ field }) => (
-                      <FormItem>
+                      <FormItem className="flex flex-col">
                         <FormLabel>Senha do Dispositivo</FormLabel>
-                        <FormControl>
-                          <Input 
-                            placeholder={
-                              form.watch("passwordType") === "pattern" 
-                                ? "Desenho do padrão (ex: L, Z, etc)" 
-                                : "Senha do dispositivo"
-                            } 
-                            {...field} 
-                          />
-                        </FormControl>
+                        {isPatternPasswordType ? (
+                          <FormControl>
+                            <div className="mt-2">
+                              <PatternLock
+                                value={field.value}
+                                onChange={field.onChange}
+                              />
+                            </div>
+                          </FormControl>
+                        ) : (
+                          <FormControl>
+                            <Input 
+                              placeholder={
+                                form.watch("passwordType") === "pin" 
+                                  ? "Digite o PIN (ex: 1234)" 
+                                  : "Senha do dispositivo"
+                              } 
+                              {...field} 
+                            />
+                          </FormControl>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}

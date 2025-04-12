@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
@@ -277,7 +276,18 @@ const ServiceRegistration = () => {
   };
   
   const goBack = () => {
-    navigate(`/device-registration/${clientId}${deviceId ? `/${deviceId}` : ''}`);
+    try {
+      if (clientId && deviceId) {
+        navigate(`/device-registration/${clientId}/${deviceId}`);
+      } else if (clientId) {
+        navigate(`/device-registration/${clientId}`);
+      } else {
+        navigate('/clients');
+      }
+    } catch (error) {
+      console.error('Erro na navegação:', error);
+      navigate('/clients');
+    }
   };
   
   return (

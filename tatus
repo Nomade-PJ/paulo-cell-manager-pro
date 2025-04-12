@@ -1,0 +1,5 @@
+[33mf699cfc[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Adicionar exemplo de NFC-e para testes e atualizar documentação
+[33mc7d181b[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Fix: Implement document action buttons
+[33m9eef243[m Fix: Select component value prop error
+[33m035b14a[m Fix: Resolve infinite redirect loop on login
+[33md66dc08[m Fix: Resolve application errors

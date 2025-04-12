@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -44,34 +43,22 @@ const FormSchema = z.object({
   name: z.string().min(3, {
     message: 'O nome deve ter pelo menos 3 caracteres.',
   }),
-  documentType: z.nativeEnum(DocumentTypes),
-  document: z.string().min(1, {
-    message: 'Documento obrigatório',
-  }),
-  phone: z.string().min(10, {
-    message: 'Telefone inválido',
-  }),
-  email: z.string().email({
-    message: 'Email inválido',
-  }),
-  cep: z.string().min(8, {
-    message: 'CEP inválido',
-  }),
-  state: z.string().min(2, {
-    message: 'Estado obrigatório',
-  }),
-  city: z.string().min(2, {
-    message: 'Cidade obrigatória',
-  }),
-  neighborhood: z.string().min(2, {
-    message: 'Bairro obrigatório',
-  }),
-  street: z.string().min(2, {
-    message: 'Rua obrigatória',
-  }),
-  number: z.string().min(1, {
-    message: 'Número obrigatório',
-  }),
+  documentType: z.nativeEnum(DocumentTypes).optional(),
+  document: z.string().optional(),
+  phone: z.string().optional(),
+  email: z.string().optional().refine(
+    (email) => {
+      if (!email || email.trim() === '') return true;
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }, 
+    { message: 'Email inválido' }
+  ),
+  cep: z.string().optional(),
+  state: z.string().optional(),
+  city: z.string().optional(),
+  neighborhood: z.string().optional(),
+  street: z.string().optional(),
+  number: z.string().optional(),
   complement: z.string().optional(),
 });
 
@@ -279,7 +266,7 @@ export default function UserRegistration() {
                     name="documentType"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Tipo de Documento*</FormLabel>
+                        <FormLabel>Tipo de Documento</FormLabel>
                         <Select 
                           onValueChange={(value) => field.onChange(value as keyof typeof DocumentTypes)}
                           defaultValue={field.value}
@@ -305,7 +292,7 @@ export default function UserRegistration() {
                     name="document"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Número do Documento*</FormLabel>
+                        <FormLabel>Número do Documento</FormLabel>
                         <FormControl>
                           <Input 
                             placeholder={watchDocumentType === DocumentTypes.cpf ? '000.000.000-00' : '00.000.000/0000-00'}
@@ -324,7 +311,7 @@ export default function UserRegistration() {
                     name="phone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Telefone*</FormLabel>
+                        <FormLabel>Telefone</FormLabel>
                         <FormControl>
                           <Input
                             placeholder="(00) 00000-0000"
@@ -341,7 +328,7 @@ export default function UserRegistration() {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>E-mail*</FormLabel>
+                        <FormLabel>E-mail</FormLabel>
                         <FormControl>
                           <Input type="email" placeholder="email@exemplo.com" {...field} />
                         </FormControl>
@@ -361,7 +348,7 @@ export default function UserRegistration() {
                     name="cep"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>CEP*</FormLabel>
+                        <FormLabel>CEP</FormLabel>
                         <FormControl>
                           <Input
                             placeholder="00000-000"
@@ -382,7 +369,7 @@ export default function UserRegistration() {
                     name="state"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Estado*</FormLabel>
+                        <FormLabel>Estado</FormLabel>
                         <FormControl>
                           <Input placeholder="UF" maxLength={2} {...field} />
                         </FormControl>
@@ -396,7 +383,7 @@ export default function UserRegistration() {
                     name="city"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Cidade*</FormLabel>
+                        <FormLabel>Cidade</FormLabel>
                         <FormControl>
                           <Input placeholder="Cidade" {...field} />
                         </FormControl>
@@ -412,7 +399,7 @@ export default function UserRegistration() {
                     name="neighborhood"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Bairro*</FormLabel>
+                        <FormLabel>Bairro</FormLabel>
                         <FormControl>
                           <Input placeholder="Bairro" {...field} />
                         </FormControl>
@@ -426,7 +413,7 @@ export default function UserRegistration() {
                     name="street"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Rua*</FormLabel>
+                        <FormLabel>Rua</FormLabel>
                         <FormControl>
                           <Input placeholder="Rua" {...field} />
                         </FormControl>
@@ -442,7 +429,7 @@ export default function UserRegistration() {
                     name="number"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Número*</FormLabel>
+                        <FormLabel>Número</FormLabel>
                         <FormControl>
                           <Input placeholder="Número" {...field} />
                         </FormControl>

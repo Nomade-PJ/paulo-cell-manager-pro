@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -27,18 +26,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/PageHeader";
-import { Wrench, Search, Plus, MoreVertical, Edit, Trash2 } from "lucide-react";
+import { Wrench, Search, Plus } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabaseClient";
+import ServiceActionsMenu from "@/components/ServiceActionsMenu";
 
 // Status badge colors
 const statusColors = {
@@ -135,35 +127,7 @@ const Services = () => {
     }).format(value);
   };
   
-  // Handle service deletion
-  const handleDelete = async (id) => {
-    if (window.confirm("Tem certeza que deseja excluir este serviço?")) {
-      try {
-        const { error } = await supabase
-          .from("services")
-          .delete()
-          .eq('id', id);
-          
-        if (error) throw error;
-        
-        toast({
-          title: "Serviço excluído",
-          description: "O serviço foi excluído com sucesso.",
-        });
-        
-        fetchServices();
-      } catch (error) {
-        console.error("Error deleting service:", error);
-        toast({
-          variant: "destructive",
-          title: "Erro",
-          description: "Não foi possível excluir o serviço.",
-        });
-      }
-    }
-  };
-  
-  // Navigate to edit service
+  // Handle service edit
   const handleEdit = (service) => {
     navigate(`/service-registration/${service.customer_id}/${service.device_id}?serviceId=${service.id}`);
   };
@@ -207,7 +171,7 @@ const Services = () => {
                 <SelectValue placeholder="Filtrar por status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem> {/* This was already correct using "all" instead of empty string */}
+                <SelectItem value="all">Todos os status</SelectItem>
                 <SelectItem value="pending">Pendente</SelectItem>
                 <SelectItem value="in_progress">Em andamento</SelectItem>
                 <SelectItem value="waiting_parts">Aguardando peças</SelectItem>
@@ -265,26 +229,10 @@ const Services = () => {
                     <TableCell>{formatCurrency(service.price || 0)}</TableCell>
                     <TableCell>{renderStatusBadge(service.status)}</TableCell>
                     <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleEdit(service)}>
-                            <Edit className="h-4 w-4 mr-2" /> Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            className="text-destructive focus:text-destructive" 
-                            onClick={() => handleDelete(service.id)}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" /> Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <ServiceActionsMenu 
+                        service={service}
+                        onUpdate={fetchServices}
+                      />
                     </TableCell>
                   </TableRow>
                 ))

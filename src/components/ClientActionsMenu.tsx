@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   DropdownMenu,
@@ -19,7 +18,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Edit, MoreHorizontal, Trash2, Eye, Phone } from 'lucide-react';
+import { Edit, MoreHorizontal, Trash2, Eye, Phone, Smartphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabaseClient';
 import { toast } from '@/components/ui/use-toast';
@@ -71,6 +70,10 @@ const ClientActionsMenu = ({ client, onDelete }: ClientActionsMenuProps) => {
     }
   };
 
+  const handleNewDevice = () => {
+    navigate(`/device-registration/${client.id}`);
+  };
+
   return (
     <>
       <DropdownMenu>
@@ -92,6 +95,11 @@ const ClientActionsMenu = ({ client, onDelete }: ClientActionsMenuProps) => {
           <DropdownMenuItem onClick={handleEdit}>
             <Edit className="mr-2 h-4 w-4" />
             <span>Editar</span>
+          </DropdownMenuItem>
+          
+          <DropdownMenuItem onClick={handleNewDevice}>
+            <Smartphone className="mr-2 h-4 w-4" />
+            <span>Novo Dispositivo</span>
           </DropdownMenuItem>
           
           {client.phone && (

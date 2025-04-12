@@ -33,6 +33,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from "@/contexts/ThemeContext";
 
 import { Moon, Sun, Upload, Loader2 } from 'lucide-react';
 
@@ -61,7 +62,8 @@ type NotificationFormValues = z.infer<typeof notificationFormSchema>;
 type AppearanceFormValues = z.infer<typeof appearanceFormSchema>;
 
 const Settings = () => {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
+  const { theme: currentTheme, setTheme } = useTheme();
   const [isLoading, setIsLoading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -72,7 +74,7 @@ const Settings = () => {
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
       name: '',
-      email: '',
+      email: user?.email || '',
       avatarUrl: '',
     },
   });
@@ -114,6 +116,10 @@ const Settings = () => {
           profileForm.setValue('email', user.email || '');
           setAvatarUrl(profileData.avatar_url || null);
           setAvatarPreview(profileData.avatar_url || null);
+        } else {
+          const defaultName = user.email ? user.email.split('@')[0] : '';
+          profileForm.setValue('name', defaultName);
+          profileForm.setValue('email', user.email || '');
         }
 
         const { data: settingsData, error: settingsError } = await supabase
@@ -135,7 +141,6 @@ const Settings = () => {
 
         if (settingsData?.theme) {
           document.documentElement.classList.toggle('dark', settingsData.theme === 'dark');
-          updateThemeColors(settingsData.theme);
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -215,16 +220,22 @@ const Settings = () => {
     
     setIsLoading(true);
     try {
+      const now = new Date().toISOString();
+      
       const { error } = await supabase
         .from('profiles')
         .upsert({
           id: user.id,
           name: data.name,
           email: user.email,
-          updated_at: new Date().toISOString(),
-        });
+          created_at: now,
+          updated_at: now,
+          role: 'Usuário'
+        }, { onConflict: 'id' });
         
       if (error) throw error;
+      
+      await refreshProfile();
       
       toast({
         title: "Perfil atualizado",
@@ -280,18 +291,7 @@ const Settings = () => {
     
     setIsLoading(true);
     try {
-      const { error } = await supabase
-        .from('settings')
-        .upsert({
-          user_id: user.id,
-          theme: data.theme,
-          updated_at: new Date().toISOString(),
-        });
-        
-      if (error) throw error;
-      
-      document.documentElement.classList.toggle('dark', data.theme === 'dark');
-      updateThemeColors(data.theme);
+      await setTheme(data.theme);
       
       toast({
         title: 'Aparência atualizada',
@@ -306,68 +306,6 @@ const Settings = () => {
       });
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const updateThemeColors = (theme: 'light' | 'dark') => {
-    if (theme === 'dark') {
-      document.documentElement.style.setProperty('--background', '222.2 84% 4.9%');
-      document.documentElement.style.setProperty('--foreground', '210 40% 98%');
-      document.documentElement.style.setProperty('--card', '222.2 84% 4.9%');
-      document.documentElement.style.setProperty('--card-foreground', '210 40% 98%');
-      document.documentElement.style.setProperty('--popover', '222.2 84% 4.9%');
-      document.documentElement.style.setProperty('--popover-foreground', '210 40% 98%');
-      document.documentElement.style.setProperty('--primary', '210 40% 98%');
-      document.documentElement.style.setProperty('--primary-foreground', '222.2 47.4% 11.2%');
-      document.documentElement.style.setProperty('--secondary', '217.2 32.6% 17.5%');
-      document.documentElement.style.setProperty('--secondary-foreground', '210 40% 98%');
-      document.documentElement.style.setProperty('--muted', '217.2 32.6% 17.5%');
-      document.documentElement.style.setProperty('--muted-foreground', '215 20.2% 65.1%');
-      document.documentElement.style.setProperty('--accent', '217.2 32.6% 17.5%');
-      document.documentElement.style.setProperty('--accent-foreground', '210 40% 98%');
-      document.documentElement.style.setProperty('--destructive', '0 62.8% 30.6%');
-      document.documentElement.style.setProperty('--destructive-foreground', '210 40% 98%');
-      document.documentElement.style.setProperty('--border', '217.2 32.6% 17.5%');
-      document.documentElement.style.setProperty('--input', '217.2 32.6% 17.5%');
-      document.documentElement.style.setProperty('--ring', '224.3 76.3% 48%');
-      
-      document.documentElement.style.setProperty('--sidebar', '222.2 84% 4.9%');
-      document.documentElement.style.setProperty('--sidebar-foreground', '210 40% 98%');
-      document.documentElement.style.setProperty('--sidebar-border', '217.2 32.6% 17.5%');
-      document.documentElement.style.setProperty('--sidebar-primary', '210 40% 98%');
-      document.documentElement.style.setProperty('--sidebar-primary-foreground', '222.2 47.4% 11.2%');
-      document.documentElement.style.setProperty('--sidebar-accent', '217.2 32.6% 17.5%');
-      document.documentElement.style.setProperty('--sidebar-accent-foreground', '210 40% 98%');
-      document.documentElement.style.setProperty('--sidebar-ring', '224.3 76.3% 48%');
-    } else {
-      document.documentElement.style.setProperty('--background', '0 0% 100%');
-      document.documentElement.style.setProperty('--foreground', '222.2 84% 4.9%');
-      document.documentElement.style.setProperty('--card', '0 0% 100%');
-      document.documentElement.style.setProperty('--card-foreground', '222.2 84% 4.9%');
-      document.documentElement.style.setProperty('--popover', '0 0% 100%');
-      document.documentElement.style.setProperty('--popover-foreground', '222.2 84% 4.9%');
-      document.documentElement.style.setProperty('--primary', '222.2 47.4% 11.2%');
-      document.documentElement.style.setProperty('--primary-foreground', '210 40% 98%');
-      document.documentElement.style.setProperty('--secondary', '210 40% 96.1%');
-      document.documentElement.style.setProperty('--secondary-foreground', '222.2 47.4% 11.2%');
-      document.documentElement.style.setProperty('--muted', '210 40% 96.1%');
-      document.documentElement.style.setProperty('--muted-foreground', '215.4 16.3% 46.9%');
-      document.documentElement.style.setProperty('--accent', '210 40% 96.1%');
-      document.documentElement.style.setProperty('--accent-foreground', '222.2 47.4% 11.2%');
-      document.documentElement.style.setProperty('--destructive', '0 84.2% 60.2%');
-      document.documentElement.style.setProperty('--destructive-foreground', '210 40% 98%');
-      document.documentElement.style.setProperty('--border', '214.3 31.8% 91.4%');
-      document.documentElement.style.setProperty('--input', '214.3 31.8% 91.4%');
-      document.documentElement.style.setProperty('--ring', '222.2 84% 4.9%');
-      
-      document.documentElement.style.setProperty('--sidebar', '222.2 47.4% 11.2%');
-      document.documentElement.style.setProperty('--sidebar-foreground', '210 40% 98%');
-      document.documentElement.style.setProperty('--sidebar-border', '215.4 16.3% 56.9%');
-      document.documentElement.style.setProperty('--sidebar-primary', '210 40% 98%');
-      document.documentElement.style.setProperty('--sidebar-primary-foreground', '222.2 47.4% 11.2%');
-      document.documentElement.style.setProperty('--sidebar-accent', '213 27% 22%');
-      document.documentElement.style.setProperty('--sidebar-accent-foreground', '210 40% 98%');
-      document.documentElement.style.setProperty('--sidebar-ring', '210 40% 98%');
     }
   };
 

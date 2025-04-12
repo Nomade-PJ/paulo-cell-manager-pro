@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -200,24 +199,60 @@ export default function Dashboard() {
       }
     };
 
+    // Executar busca inicial de dados
     fetchDashboardData();
     
-    // Setup real-time subscription for dashboard updates
-    const channel = supabase
-      .channel('public:services')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'services' }, () => {
+    // Setup real-time subscription para atualização do dashboard
+    const servicesChannel = supabase
+      .channel('dashboard-services-changes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'services',
+        filter: 'price=gt.0' // Apenas mudanças em serviços com valor relevante para faturamento
+      }, () => {
+        console.log("Serviço alterado - atualizando dashboard");
         fetchDashboardData();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, () => {
+      .subscribe((status) => {
+        console.log(`Subscription status: ${status}`);
+      });
+      
+    const customersChannel = supabase
+      .channel('dashboard-customers-changes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'customers' 
+      }, () => {
+        console.log("Cliente alterado - atualizando dashboard");
         fetchDashboardData();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'devices' }, () => {
+      .subscribe();
+      
+    const devicesChannel = supabase
+      .channel('dashboard-devices-changes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'devices' 
+      }, () => {
+        console.log("Dispositivo alterado - atualizando dashboard");
         fetchDashboardData();
       })
       .subscribe();
     
+    // Configurar um polling backup para garantir que dados estejam atualizados
+    const pollingInterval = setInterval(() => {
+      fetchDashboardData();
+    }, 60000); // Atualizar a cada minuto como backup
+    
     return () => {
-      supabase.removeChannel(channel);
+      // Limpar recursos quando o componente for desmontado
+      supabase.removeChannel(servicesChannel);
+      supabase.removeChannel(customersChannel);
+      supabase.removeChannel(devicesChannel);
+      clearInterval(pollingInterval);
     };
   }, []);
 
@@ -241,7 +276,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Dashboard</h1>
       
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Client Card */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -304,10 +339,25 @@ export default function Dashboard() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(revenue.total)}
+            <div>
+              <div className="text-2xl font-bold">
+                {formatCurrency(revenue.thisMonth)}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Este mês
+              </p>
             </div>
-            <div className="flex items-center pt-1">
+            
+            <div className="mt-2 pt-2 border-t border-border">
+              <div className="text-sm font-medium">
+                {formatCurrency(revenue.total)}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Total acumulado
+              </p>
+            </div>
+            
+            <div className="flex items-center pt-2">
               {revenue.percentChange > 0 ? (
                 <TrendingUp className="mr-1 h-3 w-3 text-green-500" />
               ) : revenue.percentChange < 0 ? (
@@ -324,13 +374,13 @@ export default function Dashboard() {
       </div>
 
       {/* Service Chart */}
-      <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
-        <Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <Card className="w-full">
           <CardHeader>
             <CardTitle className="text-lg font-medium">Serviços nos Últimos 7 Dias</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="h-80">
+          <CardContent className="pb-6">
+            <div className="h-[300px] w-full">
               <ChartContainer
                 config={{
                   total: { label: "Total" },
@@ -385,12 +435,12 @@ export default function Dashboard() {
         </Card>
 
         {/* Revenue Chart */}
-        <Card>
+        <Card className="w-full">
           <CardHeader>
             <CardTitle className="text-lg font-medium">Faturamento nos Últimos 7 Dias</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="h-80">
+          <CardContent className="pb-6">
+            <div className="h-[300px] w-full">
               <ChartContainer
                 config={{
                   revenue: { 

@@ -9,9 +9,9 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Plus, Search, FileEdit, Trash2, Phone, UserPlus } from "lucide-react";
+import { Plus, Search, FileEdit, Trash2, Phone, UserPlus, Smartphone } from "lucide-react";
 import { Customer } from "@/types";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "@/components/ui/use-toast";
 import { formatCPF, formatCNPJ } from "@/lib/utils";
 import { supabase } from "@/integrations/supabaseClient";
@@ -28,6 +28,9 @@ import {
 
 const Clients = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const action = searchParams.get('action');
   const [clients, setClients] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -85,6 +88,11 @@ const Clients = () => {
     client.phone.includes(searchTerm) ||
     (client.document && client.document.includes(searchTerm))
   );
+  
+  // Handle client selection for different actions
+  const handleCreateDeviceForClient = (clientId: string) => {
+    navigate(`/device-registration/${clientId}`);
+  };
   
   const handleNewClient = () => {
     navigate("/user-registration");
@@ -166,14 +174,30 @@ const Clients = () => {
     });
   };
 
+  const handleClientRowClick = (client: Customer) => {
+    // Se action for select_for_device, navegar para criação de dispositivo
+    if (action === 'select_for_device') {
+      handleCreateDeviceForClient(client.id);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Clientes</h1>
-        <Button onClick={handleNewClient}>
-          <UserPlus className="mr-2 h-4 w-4" />
-          Novo Cliente
-        </Button>
+        <h1 className="text-2xl font-bold">
+          {action === 'select_for_device' ? 'Selecione um Cliente' : 'Clientes'}
+        </h1>
+        <div className="flex gap-2">
+          {action === 'select_for_device' && (
+            <Button variant="outline" onClick={() => navigate('/devices')}>
+              Cancelar
+            </Button>
+          )}
+          <Button onClick={handleNewClient}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Novo Cliente
+          </Button>
+        </div>
       </div>
       
       <div className="flex items-center space-x-2">
@@ -218,7 +242,11 @@ const Clients = () => {
               </TableRow>
             ) : (
               filteredClients.map((client) => (
-                <TableRow key={client.id}>
+                <TableRow 
+                  key={client.id} 
+                  className={action === 'select_for_device' ? 'cursor-pointer hover:bg-muted' : ''}
+                  onClick={() => action === 'select_for_device' && handleClientRowClick(client)}
+                >
                   <TableCell className="font-medium">{client.name}</TableCell>
                   <TableCell>{client.email || "—"}</TableCell>
                   <TableCell>{client.phone || "—"}</TableCell>
@@ -239,21 +267,30 @@ const Clients = () => {
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      onClick={() => handleCallClient(client.phone)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCallClient(client.phone);
+                      }}
                     >
                       <Phone className="h-4 w-4" />
                     </Button>
                     <Button 
                       variant="ghost" 
                       size="icon"
-                      onClick={() => handleEditClient(client.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditClient(client.id);
+                      }}
                     >
                       <FileEdit className="h-4 w-4" />
                     </Button>
-                    <Button 
+                    <Button
                       variant="ghost" 
                       size="icon"
-                      onClick={() => handleDeleteClient(client.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteClient(client.id);
+                      }}
                     >
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>

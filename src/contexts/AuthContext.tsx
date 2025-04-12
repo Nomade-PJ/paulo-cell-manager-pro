@@ -1,8 +1,8 @@
-
 import React, { createContext, ReactNode, useState, useEffect, useContext } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabaseClient";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 interface ProfileType {
   id: string;
@@ -28,7 +28,7 @@ interface AuthContextProps {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
-  signup: (email: string, password: string) => Promise<void>;
+  signup: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -55,6 +55,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: false,
     isLoading: true,
   });
+
+  const navigate = useNavigate();
 
   const fetchUserProfile = async (userId: string) => {
     try {
@@ -200,16 +202,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      setAuthState(prev => ({ ...prev, isLoading: true }));
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
       if (error) throw error;
+
+      // Update authenticated state
+      setAuthState(prev => ({
+        ...prev,
+        session: data.session,
+        user: data.user,
+        isAuthenticated: true,
+      }));
       
-      // Feedback de sucesso
-      toast.success("Login realizado com sucesso!");
-      return data;
+      // Redirect to dashboard instead of root
+      navigate('/dashboard');
+      
+      toast.success("Login bem-sucedido!");
     } catch (error: any) {
-      console.error("Erro de autenticação:", error);
-      toast.error("Falha no login: " + error.message);
-      throw error;
+      console.error("Error logging in:", error.message);
+      toast.error(error.message || "Erro ao fazer login");
+      return Promise.reject(error);
+    } finally {
+      setAuthState(prev => ({ ...prev, isLoading: false }));
     }
   };
 
@@ -229,16 +247,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const signup = async (email: string, password: string) => {
+  const signup = async (name: string, email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signUp({ 
+      const { data, error } = await supabase.auth.signUp({ 
         email, 
         password,
         options: {
           emailRedirectTo: window.location.origin,
+          data: {
+            name: name,
+          }
         }
       });
+
       if (error) throw error;
+
+      // Criar perfil para o usuário se o cadastro foi bem-sucedido
+      if (data?.user) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: data.user.id,
+            name: name,
+            email: email,
+            role: 'Usuário',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+
+        if (profileError) {
+          console.error("Erro ao criar perfil:", profileError);
+        }
+      }
+
       toast.success("Cadastro realizado! Verifique seu e-mail para confirmar.");
     } catch (error: any) {
       console.error("Erro no cadastro:", error);

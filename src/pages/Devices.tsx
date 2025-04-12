@@ -137,8 +137,8 @@ const Devices = () => {
     );
   };
 
-  const handleEditDevice = (deviceId: string) => {
-    navigate(`/device-registration/${deviceId}`);
+  const handleEditDevice = (deviceId: string, customerId: string) => {
+    navigate(`/device-registration/${customerId}/${deviceId}`);
   };
   
   const handleViewDevice = (device: Device) => {
@@ -194,27 +194,32 @@ const Devices = () => {
     }
   };
 
+  const handleAddDevice = () => {
+    // Navegar para a página de clientes com uma query param indicando que queremos selecionar um cliente para criar um dispositivo
+    navigate('/clients?action=select_for_device');
+  };
+
   // Mobile device card component
   const MobileDeviceCard = ({ device }: { device: Device }) => (
-    <div className="bg-white p-4 rounded-lg shadow mb-4 border border-gray-200">
+    <div className="bg-background p-4 rounded-lg shadow mb-4 border border-border">
       <div className="flex justify-between items-center mb-2">
         <div>
           <h3 className="font-medium">{device.brand} {device.model}</h3>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted-foreground">
             {device.customer_name || "Cliente desconhecido"}
           </p>
-          <p className="text-xs text-gray-500">{device.serial_number || "—"}</p>
+          <p className="text-xs text-muted-foreground">{device.serial_number || "—"}</p>
         </div>
         <div>{renderConditionBadge(device.condition)}</div>
       </div>
       
       <div className="grid grid-cols-2 gap-2 text-sm mb-3">
         <div>
-          <p className="text-xs text-gray-500">IMEI</p>
+          <p className="text-xs text-muted-foreground">IMEI</p>
           <p className="truncate">{device.imei || "—"}</p>
         </div>
         <div>
-          <p className="text-xs text-gray-500">Cor</p>
+          <p className="text-xs text-muted-foreground">Cor</p>
           <p className="truncate">{device.color || "—"}</p>
         </div>
       </div>
@@ -231,7 +236,7 @@ const Devices = () => {
         <Button 
           variant="ghost" 
           size="sm"
-          onClick={() => handleEditDevice(device.id)}
+          onClick={() => handleEditDevice(device.id, device.customer_id)}
         >
           <FileEdit className="h-4 w-4 mr-1" />
           <span className="text-xs">Editar</span>
@@ -260,6 +265,10 @@ const Devices = () => {
     <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-xl sm:text-2xl font-bold">Dispositivos</h1>
+        <Button onClick={handleAddDevice} className="gap-1">
+          <Plus className="h-4 w-4" />
+          Novo Dispositivo
+        </Button>
       </div>
       
       <div className="flex items-center space-x-2">
@@ -291,7 +300,7 @@ const Devices = () => {
           )}
         </div>
       ) : (
-        <div className="rounded-md border bg-white">
+        <div className="rounded-md border bg-background">
           <Table>
             <TableHeader>
               <TableRow>
@@ -339,7 +348,7 @@ const Devices = () => {
                       <Button 
                         variant="ghost" 
                         size="icon"
-                        onClick={() => handleEditDevice(device.id)}
+                        onClick={() => handleEditDevice(device.id, device.customer_id)}
                       >
                         <FileEdit className="h-4 w-4" />
                       </Button>
@@ -376,46 +385,46 @@ const Devices = () => {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500">Marca</p>
+                  <p className="text-sm text-muted-foreground">Marca</p>
                   <p className="font-medium">{selectedDevice.brand}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Modelo</p>
+                  <p className="text-sm text-muted-foreground">Modelo</p>
                   <p className="font-medium">{selectedDevice.model}</p>
                 </div>
               </div>
               
               <div>
-                <p className="text-sm text-gray-500">Cliente</p>
+                <p className="text-sm text-muted-foreground">Cliente</p>
                 <p className="font-medium">{selectedDevice.customer_name}</p>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500">Número de Série</p>
+                  <p className="text-sm text-muted-foreground">Número de Série</p>
                   <p>{selectedDevice.serial_number || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">IMEI</p>
+                  <p className="text-sm text-muted-foreground">IMEI</p>
                   <p>{selectedDevice.imei || "—"}</p>
                 </div>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500">Cor</p>
+                  <p className="text-sm text-muted-foreground">Cor</p>
                   <p>{selectedDevice.color || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Condição</p>
+                  <p className="text-sm text-muted-foreground">Condição</p>
                   <div className="mt-1">{renderConditionBadge(selectedDevice.condition)}</div>
                 </div>
               </div>
               
               {selectedDevice.notes && (
                 <div>
-                  <p className="text-sm text-gray-500">Observações</p>
-                  <p className="text-sm bg-gray-50 p-2 rounded mt-1">{selectedDevice.notes}</p>
+                  <p className="text-sm text-muted-foreground">Observações</p>
+                  <p className="text-sm bg-muted p-2 rounded mt-1">{selectedDevice.notes}</p>
                 </div>
               )}
             </div>
@@ -439,7 +448,7 @@ const Devices = () => {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500">Tipo de bloqueio</p>
+                  <p className="text-sm text-muted-foreground">Tipo de bloqueio</p>
                   <p className="font-medium">
                     {selectedDevice.password_type === 'none' ? 'Sem bloqueio' : 
                      selectedDevice.password_type === 'pin' ? 'PIN' :
@@ -448,31 +457,31 @@ const Devices = () => {
                 </div>
                 {selectedDevice.password_type !== 'none' && (
                   <div>
-                    <p className="text-sm text-gray-500">Senha/Padrão</p>
+                    <p className="text-sm text-muted-foreground">Senha/Padrão</p>
                     <p className="font-medium">{selectedDevice.password || "—"}</p>
                   </div>
                 )}
               </div>
               
               <div>
-                <p className="text-sm text-gray-500">Número de série</p>
-                <p className="font-mono bg-gray-50 p-1 rounded mt-1">{selectedDevice.serial_number || "—"}</p>
+                <p className="text-sm text-muted-foreground">Número de série</p>
+                <p className="font-mono bg-muted p-1 rounded mt-1">{selectedDevice.serial_number || "—"}</p>
               </div>
               
               {selectedDevice.imei && (
                 <div>
-                  <p className="text-sm text-gray-500">IMEI</p>
-                  <p className="font-mono bg-gray-50 p-1 rounded mt-1">{selectedDevice.imei}</p>
+                  <p className="text-sm text-muted-foreground">IMEI</p>
+                  <p className="font-mono bg-muted p-1 rounded mt-1">{selectedDevice.imei}</p>
                 </div>
               )}
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500">Data de cadastro</p>
+                  <p className="text-sm text-muted-foreground">Data de cadastro</p>
                   <p>{new Date(selectedDevice.created_at).toLocaleDateString('pt-BR')}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Última atualização</p>
+                  <p className="text-sm text-muted-foreground">Última atualização</p>
                   <p>{new Date(selectedDevice.updated_at).toLocaleDateString('pt-BR')}</p>
                 </div>
               </div>

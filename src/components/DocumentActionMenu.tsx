@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { 
   MoreHorizontal, 
@@ -28,6 +27,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabaseClient";
+import { useAuth } from "@/contexts/AuthContext";
+import { sendDocumentNotification } from "@/lib/notifications";
 
 interface DocumentActionMenuProps {
   document: FiscalDocument;
@@ -36,29 +37,58 @@ interface DocumentActionMenuProps {
 
 const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuProps) => {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const { user } = useAuth();
 
   // Handler for document reissue
   const handleReissue = async () => {
     try {
-      // In a real application, this would call an API to reissue the document
-      // For now, we'll just show a toast
+      // Verificar se o documento pode ser reemitido
+      if (document.status !== 'authorized') {
+        throw new Error('Apenas documentos autorizados podem ser reemitidos');
+      }
+
       toast({
         title: "Reemissão solicitada",
-        description: `Documento ${document.number} será reemitido.`,
+        description: `Iniciando reemissão do documento ${document.number}...`,
       });
-      
-      // Simulate API call
-      setTimeout(() => {
-        toast({
-          title: "Documento reemitido",
-          description: `Reemissão do documento ${document.number} concluída.`,
-        });
-        if (onDocumentUpdated) onDocumentUpdated();
-      }, 2000);
-    } catch (error) {
+
+      // Integração com a SEFAZ
+      const { data, error } = await supabase
+        .from('fiscal_documents')
+        .insert([
+          {
+            type: document.type,
+            customer_id: document.customer_id,
+            customer_name: document.customer_name,
+            total_value: document.total_value,
+            items: document.items,
+            status: 'pending',
+            original_document_id: document.id
+          }
+        ]);
+
+      if (error) throw error;
+
+      // Criar notificação sobre a reemissão do documento
+      if (user) {
+        await sendDocumentNotification(
+          user.id,
+          document.number,
+          "Documento reemitido com sucesso",
+          document.id
+        );
+      }
+
+      toast({
+        title: "Documento reemitido",
+        description: `Nova nota fiscal gerada com sucesso.`,
+      });
+
+      if (onDocumentUpdated) onDocumentUpdated();
+    } catch (error: any) {
       toast({
         title: "Erro na reemissão",
-        description: "Não foi possível reemitir o documento.",
+        description: error.message || "Não foi possível reemitir o documento.",
         variant: "destructive",
       });
       console.error("Error reissuing document:", error);
@@ -68,23 +98,60 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
   // Handler for document cancellation
   const handleCancel = async () => {
     try {
+      // Verificar se o documento pode ser cancelado
+      if (document.status !== 'authorized') {
+        throw new Error('Apenas documentos autorizados podem ser cancelados');
+      }
+
+      // Verificar prazo de cancelamento
+      const authDate = new Date(document.authorization_date!);
+      const now = new Date();
+      const hoursDiff = (now.getTime() - authDate.getTime()) / (1000 * 60 * 60);
+
+      if (document.type === 'nfce' && hoursDiff > 72) {
+        throw new Error('NFCe só pode ser cancelada em até 72 horas após a autorização');
+      }
+      if (document.type === 'nf' && hoursDiff > 720) { // 30 dias
+        throw new Error('NF-e só pode ser cancelada em até 30 dias após a autorização');
+      }
+
       toast({
         title: "Solicitação de cancelamento",
-        description: `Iniciando processo de cancelamento para ${document.number}.`,
+        description: `Iniciando processo de cancelamento para ${document.number}...`,
       });
-      
-      // Simulate API call
-      setTimeout(() => {
-        toast({
-          title: "Documento cancelado",
-          description: `O documento ${document.number} foi cancelado com sucesso.`,
-        });
-        if (onDocumentUpdated) onDocumentUpdated();
-      }, 2000);
-    } catch (error) {
+
+      // Integração com a SEFAZ
+      const { error } = await supabase
+        .from('fiscal_documents')
+        .update({
+          status: 'canceled',
+          cancelation_date: new Date().toISOString(),
+          cancelation_reason: 'Cancelamento solicitado pelo emissor'
+        })
+        .eq('id', document.id);
+
+      if (error) throw error;
+
+      // Criar notificação sobre o cancelamento do documento
+      if (user) {
+        await sendDocumentNotification(
+          user.id,
+          document.number,
+          "Documento cancelado com sucesso",
+          document.id
+        );
+      }
+
+      toast({
+        title: "Documento cancelado",
+        description: `O documento ${document.number} foi cancelado com sucesso.`,
+      });
+
+      if (onDocumentUpdated) onDocumentUpdated();
+    } catch (error: any) {
       toast({
         title: "Erro no cancelamento",
-        description: "Não foi possível cancelar o documento.",
+        description: error.message || "Não foi possível cancelar o documento.",
         variant: "destructive",
       });
       console.error("Error canceling document:", error);
@@ -92,26 +159,64 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
   };
 
   // Handler for document download
-  const handleDownloadPDF = () => {
-    // In a real application, this would download the actual PDF
-    // For demonstration, we'll show a toast and simulate a download
-    toast({
-      title: "Download iniciado",
-      description: `O PDF do documento ${document.number} está sendo baixado.`,
-    });
+  const handleDownloadPDF = async () => {
+    try {
+      toast({
+        title: "Download iniciado",
+        description: `Gerando PDF do documento ${document.number}...`,
+      });
 
-    // Simulate download completion
-    setTimeout(() => {
-      const link = document.createElement('a');
-      link.href = document.pdf_url || '#';
-      link.download = `${document.number}.pdf`;
-      link.click();
+      // Buscar o PDF do documento no storage
+      const { data, error } = await supabase
+        .storage
+        .from('fiscal_documents')
+        .download(`${document.id}/${document.number}.pdf`);
+
+      if (error) throw error;
+
+      // Criar URL do blob e fazer download
+      const blob = new Blob([data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      
+      try {
+        // Criar elemento de download
+        const downloadLink = window.document.createElement('a');
+        downloadLink.style.display = 'none';
+        downloadLink.href = url;
+        downloadLink.setAttribute('download', `${document.number}.pdf`);
+        
+        // Adicionar ao DOM
+        window.document.body.appendChild(downloadLink);
+        
+        // Iniciar download
+        downloadLink.click();
+        
+        // Aguardar um pequeno intervalo antes de remover o elemento
+        // para garantir que o navegador tenha tempo de iniciar o download
+        setTimeout(() => {
+          if (window.document.body.contains(downloadLink)) {
+            window.document.body.removeChild(downloadLink);
+          }
+        }, 100);
+      } finally {
+        // Revogar a URL do blob após um tempo para garantir que o download foi iniciado
+        setTimeout(() => {
+          window.URL.revokeObjectURL(url);
+        }, 200);
+      }
       
       toast({
         title: "Download concluído",
         description: `O PDF do documento ${document.number} foi baixado.`,
       });
-    }, 1500);
+    } catch (error: any) {
+      toast({
+        title: "Erro no download",
+        description: error.message || "Não foi possível baixar o PDF do documento.",
+        variant: "destructive",
+      });
+      console.error("Error downloading PDF:", error);
+    }
   };
 
   // Handler for document details view
@@ -120,19 +225,48 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
   };
 
   // Handler for sending by email
-  const handleSendEmail = () => {
-    toast({
-      title: "Envio por email",
-      description: `Preparando envio por email do documento ${document.number}.`,
-    });
+  const handleSendEmail = async () => {
+    try {
+      toast({
+        title: "Envio por email",
+        description: `Preparando envio do documento ${document.number}...`,
+      });
 
-    // Simulate sending email
-    setTimeout(() => {
+      // Buscar informações do cliente
+      const { data: customerData, error: customerError } = await supabase
+        .from('customers')
+        .select('email')
+        .eq('id', document.customer_id)
+        .single();
+
+      if (customerError) throw customerError;
+
+      // Enviar email com o documento
+      const { error: emailError } = await supabase
+        .functions
+        .invoke('send-fiscal-document', {
+          body: {
+            documentId: document.id,
+            documentNumber: document.number,
+            customerEmail: customerData.email,
+            documentType: document.type.toUpperCase()
+          }
+        });
+
+      if (emailError) throw emailError;
+
       toast({
         title: "Email enviado",
         description: `O documento ${document.number} foi enviado por email.`,
       });
-    }, 2000);
+    } catch (error: any) {
+      toast({
+        title: "Erro no envio",
+        description: error.message || "Não foi possível enviar o documento por email.",
+        variant: "destructive",
+      });
+      console.error("Error sending email:", error);
+    }
   };
 
   return (

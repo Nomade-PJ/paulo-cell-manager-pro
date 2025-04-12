@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import { 
@@ -25,27 +24,27 @@ const Sidebar = () => {
   const [open, setOpen] = useState(false);
   
   const navItems = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-    { icon: Users, label: "Clientes", path: "/clients" },
-    { icon: Smartphone, label: "Dispositivos", path: "/devices" },
-    { icon: Wrench, label: "Serviços", path: "/services" },
-    { icon: Package, label: "Estoque", path: "/inventory" },
-    { icon: FileText, label: "Documentos", path: "/documents" },
-    { icon: BarChart3, label: "Relatórios", path: "/reports" },
-    { icon: Settings, label: "Configurações", path: "/settings" },
+    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
+    { icon: Users, label: "Clientes", path: "/dashboard/clients" },
+    { icon: Smartphone, label: "Dispositivos", path: "/dashboard/devices" },
+    { icon: Wrench, label: "Serviços", path: "/dashboard/services" },
+    { icon: Package, label: "Estoque", path: "/dashboard/inventory" },
+    { icon: FileText, label: "Documentos", path: "/dashboard/documents" },
+    { icon: BarChart3, label: "Relatórios", path: "/dashboard/reports" },
+    { icon: Settings, label: "Configurações", path: "/dashboard/settings" },
   ];
 
   // Safely access user properties with fallbacks
   const userEmail = user?.email || '';
   const userInitials = profile?.name ? profile.name.charAt(0).toUpperCase() : userEmail ? userEmail.charAt(0).toUpperCase() : "U";
-  const displayName = profile?.name || (userEmail ? userEmail.split('@')[0] : "Usuário");
+  const displayName = profile?.name || (userEmail ? userEmail.split('@')[0] : "user");
   const userRole = profile?.role || "Usuário";
   const avatarUrl = profile?.avatar_url;
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-center h-16 px-4 border-b border-sidebar-border">
-        <h1 className="text-2xl font-bold">Paulo Cell</h1>
+        <h1 className="text-2xl font-bold">Paulo Cell Sistema</h1>
       </div>
 
       <div className="flex flex-col items-center py-4 px-2">
@@ -60,8 +59,8 @@ const Sidebar = () => {
           )}
         </div>
         <div className="mt-2 text-center">
-          <p className="font-medium">{displayName}</p>
-          <p className="text-sm text-sidebar-foreground/70">{userRole}</p>
+          <div className="font-medium text-sidebar-foreground">{displayName}</div>
+          <div className="text-xs text-sidebar-foreground/70">{userEmail}</div>
         </div>
       </div>
 
@@ -79,7 +78,7 @@ const Sidebar = () => {
               )
             }
             onClick={() => isMobile && setOpen(false)}
-            end={item.path === "/"}
+            end={item.path === "/dashboard"}
           >
             <item.icon className="mr-3 h-5 w-5" aria-hidden="true" />
             {item.label}
@@ -89,7 +88,7 @@ const Sidebar = () => {
 
       <div className="px-2 py-4 border-t border-sidebar-border">
         <p className="text-xs text-center text-sidebar-foreground/50">
-          Paulo Cell Manager v1.0.0
+          Paulo Cell Sistema
         </p>
       </div>
     </div>
