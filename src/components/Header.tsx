@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Bell, DollarSign, Wrench, Package, FileText, Sparkles, CheckCheck } from "lucide-react";
+import { Bell, DollarSign, Wrench, Package, FileText, Sparkles, CheckCheck, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabaseClient";
+import { useLocation } from "react-router-dom";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 // Tipo para as notificações
 type Notification = {
@@ -32,12 +34,30 @@ type Notification = {
 };
 
 const Header = () => {
-  const { logout, user } = useAuth();
+  const { logout, user, profile } = useAuth();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
+  const location = useLocation();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+
+  // Função para determinar o título da página baseado na URL atual
+  const getPageTitle = () => {
+    const path = location.pathname;
+    if (path === "/dashboard") return "Dashboard";
+    if (path.includes("/clients")) return "Clientes";
+    if (path.includes("/devices")) return "Dispositivos";
+    if (path.includes("/services")) return "Serviços";
+    if (path.includes("/inventory")) return "Estoque";
+    if (path.includes("/documents")) return "Documentos";
+    if (path.includes("/reports")) return "Relatórios";
+    if (path.includes("/settings")) return "Configurações";
+    if (path.includes("/user-registration")) return "Cadastro de Cliente";
+    if (path.includes("/device-registration")) return "Cadastro de Dispositivo";
+    if (path.includes("/service-registration")) return "Cadastro de Serviço";
+    return "Paulo Cell Sistema";
+  };
 
   // Função para carregar notificações do usuário
   const loadNotifications = async () => {
@@ -183,15 +203,16 @@ const Header = () => {
     }
   };
   
+  // Recuperar as informações do avatar e nome do usuário
+  const userInitials = profile?.name ? profile.name.charAt(0).toUpperCase() : user?.email ? user.email.charAt(0).toUpperCase() : "U";
+  const displayName = profile?.name || (user?.email ? user.email.split('@')[0] : "Usuário");
+  const avatarUrl = profile?.avatar_url;
+  
   return (
     <header className="bg-background border-b border-border sticky top-0 z-10">
       <div className="flex h-14 sm:h-16 items-center justify-between px-3 sm:px-4 md:px-6">
-        {/* Empty div to balance the layout on mobile */}
-        <div className="w-10 lg:hidden"></div>
-        
-        <div className="flex flex-1 items-center justify-center px-2 lg:ml-6 lg:justify-end">
-          {/* Search input removed */}
-        </div>
+        {/* Título da página atual */}
+        <div className="font-semibold text-lg">{getPageTitle()}</div>
         
         <div className="flex items-center gap-1 sm:gap-2">
           <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -270,9 +291,27 @@ const Header = () => {
             </DropdownMenuContent>
           </DropdownMenu>
           
-          <Button variant="outline" size="sm" onClick={logout} className="text-xs sm:text-sm">
-            Sair
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 p-0">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={avatarUrl} alt={displayName} />
+                  <AvatarFallback>{userInitials}</AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Minha conta</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate('/dashboard/settings')}>
+                <User className="mr-2 h-4 w-4" />
+                <span>Perfil</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={logout}>
+                Sair
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>
