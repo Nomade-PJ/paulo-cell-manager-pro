@@ -87,3 +87,28 @@ export interface DashboardStats {
   low_stock_items: Part[];
   month_revenue: { date: string; revenue: number }[];
 }
+
+// Tipos específicos para o Dashboard
+export interface ClientCount {
+  total: number;
+  newThisMonth: number;
+}
+
+export interface DeviceCount {
+  total: number;
+  needsService: number;
+}
+
+export interface CompletedServices {
+  total: number;
+  completed: number;
+  pending: number;
+  percentage: number;
+}
+
+export interface Revenue {
+  total: number;
+  thisMonth: number;
+  lastMonth: number;
+  percentChange: number;
+}

@@ -1,15 +1,15 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Printer } from "lucide-react";
 
 interface ServicePrinterProps {
   service: any;
   customerName: string;
   deviceInfo: string;
+  children?: React.ReactNode; // Added children prop
 }
 
-const ServicePrinter = ({ service, customerName, deviceInfo }: ServicePrinterProps) => {
+const ServicePrinter = ({ service, customerName, deviceInfo, children }: ServicePrinterProps) => {
   const printServiceReceipt = () => {
     const receipt = `
       <html>
@@ -142,8 +142,7 @@ const ServicePrinter = ({ service, customerName, deviceInfo }: ServicePrinterPro
       onClick={printServiceReceipt} 
       className="flex items-center gap-2 w-full justify-start"
     >
-      <Printer className="h-4 w-4" />
-      <span>Imprimir</span>
+      {children}
     </Button>
   );
 };

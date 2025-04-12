@@ -31,7 +31,8 @@ import {
   YAxis,
   CartesianGrid,
   ResponsiveContainer,
-  Tooltip
+  Tooltip,
+  Legend
 } from "recharts";
 
 // Helper function to get data for the last 7 days
@@ -376,11 +377,7 @@ export default function Dashboard() {
                   <Bar dataKey="total" fill="var(--primary)" radius={[4, 4, 0, 0]} barSize={30} />
                   <Bar dataKey="completed" fill="#10b981" radius={[4, 4, 0, 0]} barSize={30} />
                   <Bar dataKey="pending" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={30} />
-                  <ChartLegend
-                    content={<ChartLegendContent />}
-                    verticalAlign="top"
-                    align="end"
-                  />
+                  <Legend verticalAlign="top" align="right" />
                 </BarChart>
               </ChartContainer>
             </div>
@@ -435,7 +432,7 @@ export default function Dashboard() {
                                 />
                                 <span>Faturamento</span>
                               </div>
-                              <span>{formatCurrency(payload[0].value)}</span>
+                              <span>{formatCurrency(Number(payload[0].value))}</span>
                             </div>
                           </ChartTooltipContent>
                         )
@@ -450,11 +447,7 @@ export default function Dashboard() {
                     fillOpacity={1} 
                     fill="url(#revenueGradient)" 
                   />
-                  <ChartLegend
-                    content={<ChartLegendContent />}
-                    verticalAlign="top"
-                    align="end"
-                  />
+                  <Legend verticalAlign="top" align="right" />
                 </AreaChart>
               </ChartContainer>
             </div>
