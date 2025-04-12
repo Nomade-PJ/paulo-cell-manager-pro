@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import { 
   LayoutDashboard, 
@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const Sidebar = () => {
   const { user, profile } = useAuth();
@@ -36,9 +37,10 @@ const Sidebar = () => {
 
   // Safely access user properties with fallbacks
   const userEmail = user?.email || '';
-  const userInitials = userEmail ? userEmail.charAt(0).toUpperCase() : "U";
+  const userInitials = profile?.name ? profile.name.charAt(0).toUpperCase() : userEmail ? userEmail.charAt(0).toUpperCase() : "U";
   const displayName = profile?.name || (userEmail ? userEmail.split('@')[0] : "Usuário");
   const userRole = profile?.role || "Usuário";
+  const avatarUrl = profile?.avatar_url;
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -47,8 +49,15 @@ const Sidebar = () => {
       </div>
 
       <div className="flex flex-col items-center py-4 px-2">
-        <div className="w-16 h-16 rounded-full bg-sidebar-accent flex items-center justify-center text-xl font-semibold">
-          {userInitials}
+        <div className="w-16 h-16 rounded-full bg-sidebar-accent flex items-center justify-center text-xl font-semibold overflow-hidden">
+          {avatarUrl ? (
+            <Avatar className="w-full h-full">
+              <AvatarImage src={avatarUrl} alt={displayName} />
+              <AvatarFallback>{userInitials}</AvatarFallback>
+            </Avatar>
+          ) : (
+            <span>{userInitials}</span>
+          )}
         </div>
         <div className="mt-2 text-center">
           <p className="font-medium">{displayName}</p>

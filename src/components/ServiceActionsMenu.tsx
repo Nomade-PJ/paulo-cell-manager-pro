@@ -141,7 +141,12 @@ const ServiceActionsMenu = ({
               service={service} 
               customerName={customerName} 
               deviceInfo={deviceInfo}
-            />
+            >
+              <div className="flex items-center">
+                <Printer className="mr-2 h-4 w-4" />
+                <span>Imprimir</span>
+              </div>
+            </ServicePrinter>
           </DropdownMenuItem>
           
           <DropdownMenuSeparator />

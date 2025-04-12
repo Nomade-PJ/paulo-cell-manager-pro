@@ -4,15 +4,18 @@ import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabaseClient";
 import { toast } from "sonner";
 
+interface ProfileType {
+  id: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  avatar_url?: string | null;
+}
+
 interface AuthState {
   session: Session | null;
   user: User | null;
-  profile: {
-    id: string;
-    name?: string;
-    email?: string;
-    role?: string;
-  } | null;
+  profile: ProfileType | null;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -20,18 +23,14 @@ interface AuthState {
 interface AuthContextProps {
   session: Session | null;
   user: User | null;
-  profile: {
-    id: string;
-    name?: string;
-    email?: string;
-    role?: string;
-  } | null;
+  profile: ProfileType | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   signup: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -57,6 +56,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading: true,
   });
 
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error("Error fetching user profile:", error);
+        return null;
+      }
+      
+      return data;
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      return null;
+    }
+  };
+
+  const refreshProfile = async () => {
+    if (!authState.user) return;
+    
+    try {
+      const profileData = await fetchUserProfile(authState.user.id);
+      
+      if (profileData) {
+        setAuthState(prev => ({
+          ...prev,
+          profile: profileData,
+        }));
+      }
+    } catch (error) {
+      console.error("Error refreshing user profile:", error);
+    }
+  };
+
   useEffect(() => {
     // Get initial session
     const initializeAuth = async () => {
@@ -71,30 +107,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }));
 
         if (session?.user) {
-          try {
-            const { data, error } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
-            
-            if (error && error.code !== 'PGRST116') {
-              console.error("Error fetching user profile:", error);
-            }
-            
-            setAuthState(prev => ({ 
-              ...prev, 
-              profile: data || { id: session.user.id, email: session.user.email }, 
-              isLoading: false 
-            }));
-          } catch (error) {
-            console.error("Error fetching user profile:", error);
-            setAuthState(prev => ({ 
-              ...prev, 
-              profile: { id: session.user.id, email: session.user.email }, 
-              isLoading: false 
-            }));
-          }
+          const profileData = await fetchUserProfile(session.user.id);
+          
+          setAuthState(prev => ({ 
+            ...prev, 
+            profile: profileData || { id: session.user.id, email: session.user.email }, 
+            isLoading: false 
+          }));
         } else {
           setAuthState(prev => ({ ...prev, isLoading: false }));
         }
@@ -106,7 +125,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Set up authentication state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         setAuthState(prev => ({ 
           ...prev, 
           session, 
@@ -115,33 +134,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }));
         
         if (session?.user) {
-          // Use setTimeout to prevent deadlocks
-          setTimeout(async () => {
-            try {
-              const { data, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', session.user.id)
-                .single();
-              
-              if (error && error.code !== 'PGRST116') {
-                console.error("Error fetching user profile:", error);
-              }
-              
-              setAuthState(prev => ({ 
-                ...prev, 
-                profile: data || { id: session.user.id, email: session.user.email }, 
-                isLoading: false 
-              }));
-            } catch (error) {
-              console.error("Error fetching user profile:", error);
-              setAuthState(prev => ({ 
-                ...prev, 
-                profile: { id: session.user.id, email: session.user.email }, 
-                isLoading: false 
-              }));
-            }
-          }, 0);
+          const profileData = await fetchUserProfile(session.user.id);
+          
+          setAuthState(prev => ({ 
+            ...prev, 
+            profile: profileData || { id: session.user.id, email: session.user.email }, 
+            isLoading: false 
+          }));
         } else {
           setAuthState(prev => ({ ...prev, profile: null, isLoading: false }));
         }
@@ -150,8 +149,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     initializeAuth();
 
+    // Set up real-time subscription to profile changes
+    const profileSubscription = supabase
+      .channel('public:profiles')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'profiles'
+      }, async (payload) => {
+        const updatedProfile = payload.new as ProfileType;
+        if (authState.user && updatedProfile.id === authState.user.id) {
+          setAuthState(prev => ({
+            ...prev,
+            profile: {
+              ...prev.profile,
+              ...updatedProfile
+            }
+          }));
+        }
+      })
+      .subscribe();
+
     return () => {
       subscription.unsubscribe();
+      profileSubscription.unsubscribe();
     };
   }, []);
 
@@ -217,6 +238,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     loginWithGoogle,
     signup,
     logout,
+    refreshProfile,
   };
 
   return (

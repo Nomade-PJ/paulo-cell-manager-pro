@@ -34,7 +34,7 @@ import { toast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 
-import { Moon, Sun, Upload, UserCircle, BellRing, Loader2 } from 'lucide-react';
+import { Moon, Sun, Upload, Loader2 } from 'lucide-react';
 
 const profileFormSchema = z.object({
   name: z.string().min(2, {
@@ -227,15 +227,15 @@ const Settings = () => {
       if (error) throw error;
       
       toast({
-        title: 'Perfil atualizado',
-        description: 'Suas informações pessoais foram atualizadas com sucesso.',
+        title: "Perfil atualizado",
+        description: "Suas informações pessoais foram atualizadas com sucesso.",
       });
     } catch (error) {
       console.error('Error updating profile:', error);
       toast({
-        variant: 'destructive',
-        title: 'Erro',
-        description: 'Não foi possível atualizar o perfil.',
+        variant: "destructive",
+        title: "Erro",
+        description: "Não foi possível atualizar o perfil.",
       });
     } finally {
       setIsLoading(false);
@@ -260,15 +260,15 @@ const Settings = () => {
       if (error) throw error;
       
       toast({
-        title: 'Notificações atualizadas',
-        description: 'Suas preferências de notificação foram atualizadas.',
+        title: "Notificações atualizadas",
+        description: "Suas preferências de notificação foram atualizadas.",
       });
     } catch (error) {
       console.error('Error updating notification settings:', error);
       toast({
-        variant: 'destructive',
-        title: 'Erro',
-        description: 'Não foi possível atualizar as preferências de notificação.',
+        variant: "destructive",
+        title: "Erro",
+        description: "Não foi possível atualizar as preferências de notificação.",
       });
     } finally {
       setIsLoading(false);
@@ -300,9 +300,9 @@ const Settings = () => {
     } catch (error) {
       console.error('Error updating appearance settings:', error);
       toast({
-        variant: 'destructive',
-        title: 'Erro',
-        description: 'Não foi possível atualizar as preferências de aparência.',
+        variant: "destructive",
+        title: "Erro",
+        description: "Não foi possível atualizar as preferências de aparência.",
       });
     } finally {
       setIsLoading(false);
@@ -317,12 +317,28 @@ const Settings = () => {
       document.documentElement.style.setProperty('--card-foreground', '210 40% 98%');
       document.documentElement.style.setProperty('--popover', '222.2 84% 4.9%');
       document.documentElement.style.setProperty('--popover-foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--primary', '210 40% 98%');
+      document.documentElement.style.setProperty('--primary-foreground', '222.2 47.4% 11.2%');
+      document.documentElement.style.setProperty('--secondary', '217.2 32.6% 17.5%');
+      document.documentElement.style.setProperty('--secondary-foreground', '210 40% 98%');
       document.documentElement.style.setProperty('--muted', '217.2 32.6% 17.5%');
       document.documentElement.style.setProperty('--muted-foreground', '215 20.2% 65.1%');
       document.documentElement.style.setProperty('--accent', '217.2 32.6% 17.5%');
       document.documentElement.style.setProperty('--accent-foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--destructive', '0 62.8% 30.6%');
+      document.documentElement.style.setProperty('--destructive-foreground', '210 40% 98%');
       document.documentElement.style.setProperty('--border', '217.2 32.6% 17.5%');
       document.documentElement.style.setProperty('--input', '217.2 32.6% 17.5%');
+      document.documentElement.style.setProperty('--ring', '224.3 76.3% 48%');
+      
+      document.documentElement.style.setProperty('--sidebar', '222.2 84% 4.9%');
+      document.documentElement.style.setProperty('--sidebar-foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--sidebar-border', '217.2 32.6% 17.5%');
+      document.documentElement.style.setProperty('--sidebar-primary', '210 40% 98%');
+      document.documentElement.style.setProperty('--sidebar-primary-foreground', '222.2 47.4% 11.2%');
+      document.documentElement.style.setProperty('--sidebar-accent', '217.2 32.6% 17.5%');
+      document.documentElement.style.setProperty('--sidebar-accent-foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--sidebar-ring', '224.3 76.3% 48%');
     } else {
       document.documentElement.style.setProperty('--background', '0 0% 100%');
       document.documentElement.style.setProperty('--foreground', '222.2 84% 4.9%');
@@ -330,12 +346,28 @@ const Settings = () => {
       document.documentElement.style.setProperty('--card-foreground', '222.2 84% 4.9%');
       document.documentElement.style.setProperty('--popover', '0 0% 100%');
       document.documentElement.style.setProperty('--popover-foreground', '222.2 84% 4.9%');
+      document.documentElement.style.setProperty('--primary', '222.2 47.4% 11.2%');
+      document.documentElement.style.setProperty('--primary-foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--secondary', '210 40% 96.1%');
+      document.documentElement.style.setProperty('--secondary-foreground', '222.2 47.4% 11.2%');
       document.documentElement.style.setProperty('--muted', '210 40% 96.1%');
       document.documentElement.style.setProperty('--muted-foreground', '215.4 16.3% 46.9%');
       document.documentElement.style.setProperty('--accent', '210 40% 96.1%');
       document.documentElement.style.setProperty('--accent-foreground', '222.2 47.4% 11.2%');
+      document.documentElement.style.setProperty('--destructive', '0 84.2% 60.2%');
+      document.documentElement.style.setProperty('--destructive-foreground', '210 40% 98%');
       document.documentElement.style.setProperty('--border', '214.3 31.8% 91.4%');
       document.documentElement.style.setProperty('--input', '214.3 31.8% 91.4%');
+      document.documentElement.style.setProperty('--ring', '222.2 84% 4.9%');
+      
+      document.documentElement.style.setProperty('--sidebar', '222.2 47.4% 11.2%');
+      document.documentElement.style.setProperty('--sidebar-foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--sidebar-border', '215.4 16.3% 56.9%');
+      document.documentElement.style.setProperty('--sidebar-primary', '210 40% 98%');
+      document.documentElement.style.setProperty('--sidebar-primary-foreground', '222.2 47.4% 11.2%');
+      document.documentElement.style.setProperty('--sidebar-accent', '213 27% 22%');
+      document.documentElement.style.setProperty('--sidebar-accent-foreground', '210 40% 98%');
+      document.documentElement.style.setProperty('--sidebar-ring', '210 40% 98%');
     }
   };
 
