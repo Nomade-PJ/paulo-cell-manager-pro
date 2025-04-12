@@ -47,19 +47,56 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
     // Validações específicas por tipo de documento
     switch (documentType) {
       case 'nfce':
-        if (!customerName.match(/^[A-Za-zÀ-ÖØ-öø-ÿ\s]{3,}$/)) {
+        if (customerName.trim().length < 3) {
           throw new Error("Nome do cliente inválido para NFC-e.");
         }
         break;
       case 'nf':
-        if (!customerName.match(/^[A-Za-zÀ-ÖØ-öø-ÿ\s]{3,}(\s+[A-Za-zÀ-ÖØ-öø-ÿ]{2,})+$/)) {
+        const nameParts = customerName.trim().split(' ');
+        if (nameParts.length < 2 || nameParts[0].length < 3 || nameParts[1].length < 2) {
           throw new Error("Nome completo do cliente é obrigatório para NF-e.");
         }
         break;
     }
   };
 
-const handleSubmit = async (event: React.FormEvent) => {
+  // Função para gerar dados fiscais fictícios
+  const generateFiscalData = (type: string) => {
+    const now = new Date();
+    const timestamp = now.getTime();
+    const randomPart = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    
+    // Gerar número de série baseado no tipo de documento
+    const seriesNumber = type === 'nf' ? '001' : 
+                         type === 'nfce' ? '002' : '003';
+    
+    // Gerar número de documento
+    const documentNumber = `${Math.floor(Math.random() * 100000).toString().padStart(6, '0')}`;
+    
+    // Gerar chave de acesso de 44 dígitos (fictícia mas com estrutura válida)
+    // Formato: UF(2) + AAMM(4) + CNPJ(14) + MODELO(2) + SÉRIE(3) + NUMERO(9) + CHAVE(9) + DV(1)
+    const uf = '35'; // São Paulo
+    const aamm = `${now.getFullYear().toString().substring(2)}${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+    const cnpj = '12345678901234';
+    const modelo = type === 'nf' ? '55' : type === 'nfce' ? '65' : '57';
+    const numero = documentNumber.padStart(9, '0');
+    const chaveExtra = timestamp.toString().substring(0, 9);
+    const dv = '0'; // Dígito verificador (em produção, seria calculado)
+    
+    const accessKey = `${uf}${aamm}${cnpj}${modelo}${seriesNumber}${numero}${chaveExtra}${dv}`;
+    
+    // Retornar objeto com todos os dados fiscais
+    return {
+      number: `${type.toUpperCase()}-${seriesNumber}-${documentNumber}`,
+      series: seriesNumber,
+      access_key: accessKey,
+      authorization_date: now.toISOString(),
+      issue_date: now.toISOString(),
+      protocol_number: `${now.getFullYear()}${randomPart}${timestamp.toString().substring(5, 13)}`
+    };
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setIsSubmitting(true);
     
@@ -72,6 +109,9 @@ const handleSubmit = async (event: React.FormEvent) => {
         description: "Emitindo documento fiscal...",
       });
 
+      // Gerar dados fiscais fictícios
+      const fiscalData = generateFiscalData(documentType);
+
       // Criar documento fiscal no Supabase
       const { data: document, error: createError } = await supabase
         .from('fiscal_documents')
@@ -80,8 +120,13 @@ const handleSubmit = async (event: React.FormEvent) => {
             type: documentType,
             customer_name: customerName,
             total_value: parseFloat(totalValue),
-            status: 'pending',
-            issue_date: new Date().toISOString()
+            status: 'authorized', // Já começa como autorizado, pois é fictício
+            issue_date: fiscalData.issue_date,
+            number: fiscalData.number,
+            series: fiscalData.series,
+            authorization_date: fiscalData.authorization_date,
+            access_key: fiscalData.access_key,
+            protocol_number: fiscalData.protocol_number
           }
         ])
         .select()
@@ -89,73 +134,31 @@ const handleSubmit = async (event: React.FormEvent) => {
 
       if (createError) throw createError;
 
-      // Integrar com a SEFAZ
-      try {
-        const { data: sefazResponse, error: sefazError } = await supabase
-          .functions
-          .invoke('emit-fiscal-document', {
-            body: {
-              documentId: document.id,
-              type: documentType,
-              customerName,
-              totalValue: parseFloat(totalValue)
-            }
-          });
+      // Gerar PDF fictício (em um cenário real seria gerado pelo backend)
+      const pdfBlob = new Blob(['Documento fiscal fictício'], { type: 'application/pdf' });
+      const pdfFileName = `${documentType.toUpperCase()}_${fiscalData.number.replace(/\D/g, '')}.pdf`;
+      
+      // Armazenar o PDF fictício no Storage do Supabase
+      const { data: pdfData, error: pdfError } = await supabase.storage
+        .from('fiscal_documents')
+        .upload(`pdfs/${document.id}/${pdfFileName}`, pdfBlob);
+      
+      if (pdfError) {
+        console.error("Erro ao armazenar PDF:", pdfError);
+        // Não impede o fluxo, apenas loga o erro
+      }
 
-        if (sefazError) {
-          console.error("SEFAZ integration error:", sefazError);
-          
-          // Simulate successful document emission for demo purposes
-          // In a production environment, this would be handled differently
-          const { error: updateError } = await supabase
-            .from('fiscal_documents')
-            .update({
-              status: 'authorized',
-              number: `${documentType.toUpperCase()}-${Math.floor(Math.random() * 10000).toString().padStart(5, '0')}`,
-              authorization_date: new Date().toISOString(),
-              access_key: `3525${Date.now()}${Math.floor(Math.random() * 1000000)}`,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', document.id);
-            
-          if (updateError) {
-            console.error("Error updating document status:", updateError);
-            throw new Error("Não foi possível atualizar o status do documento");
-          }
-        } else if (!sefazResponse || !sefazResponse.success) {
-          const errorMsg = sefazResponse?.message || 'Erro na emissão do documento fiscal';
-          // Atualizar status do documento para erro
-          const { error: updateError } = await supabase
-            .from('fiscal_documents')
-            .update({ 
-              status: 'error', 
-              error_message: errorMsg,
-              updated_at: new Date().toISOString() 
-            })
-            .eq('id', document.id);
-            
-          if (updateError) console.error("Error updating document status:", updateError);
-          throw new Error(errorMsg);
-        }
-      } catch (error) {
-        console.error("SEFAZ function call failed:", error);
-        
-        // As a fallback for the demo, simulate a successful document
-        // In production, this would be handled differently
+      // Atualizar o documento com o caminho do PDF, se foi armazenado com sucesso
+      if (pdfData?.path) {
         const { error: updateError } = await supabase
           .from('fiscal_documents')
           .update({
-            status: 'authorized',
-            number: `${documentType.toUpperCase()}-${Math.floor(Math.random() * 10000).toString().padStart(5, '0')}`,
-            authorization_date: new Date().toISOString(),
-            access_key: `3525${Date.now()}${Math.floor(Math.random() * 1000000)}`,
-            updated_at: new Date().toISOString()
+            pdf_url: pdfData.path
           })
           .eq('id', document.id);
         
         if (updateError) {
-          console.error("Failed to update document in fallback:", updateError);
-          throw new Error("Não foi possível completar a emissão do documento");
+          console.error("Erro ao atualizar URL do PDF:", updateError);
         }
       }
 
@@ -164,7 +167,7 @@ const handleSubmit = async (event: React.FormEvent) => {
       
       toast({
         title: "Documento Emitido",
-        description: `${documentTypeName} emitida com sucesso.`,
+        description: `${documentTypeName} emitida com sucesso. Número: ${fiscalData.number}`,
       });
       
       setOpen(false);
@@ -248,26 +251,21 @@ const handleSubmit = async (event: React.FormEvent) => {
             
             <div className="space-y-2">
               <Label htmlFor="details" className="text-sm text-muted-foreground">
-                {documentType === "nf" && "Para notas fiscais de produtos, é necessário incluir os itens na próxima etapa."}
-                {documentType === "nfce" && "Para NFCe, o documento será gerado com QR code para consulta."}
-                {documentType === "nfs" && "Para notas de serviço, descreva o serviço na próxima etapa."}
+                Detalhes adicionais
               </Label>
+              <p className="text-sm text-muted-foreground">
+                {documentType === "nf" && "Nota fiscal eletrônica para empresas e pessoas físicas."}
+                {documentType === "nfce" && "Nota fiscal de consumidor para vendas no varejo."}
+                {documentType === "nfs" && "Nota fiscal para prestação de serviços."}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                <em>Nota: Documentos emitidos são fictícios e apenas para demonstração.</em>
+              </p>
             </div>
           </div>
           
           <DialogFooter>
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={() => setOpen(false)}
-              disabled={isSubmitting}
-            >
-              Cancelar
-            </Button>
-            <Button 
-              type="submit"
-              disabled={isSubmitting}
-            >
+            <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Emitindo..." : "Emitir Documento"}
             </Button>
           </DialogFooter>

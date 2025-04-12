@@ -221,7 +221,7 @@ const BottomNav = () => {
             </div>
             <DrawerFooter>
               <DrawerClose asChild>
-                <Button variant="outline" className="w-full">Fechar</Button>
+                <Button variant="default" className="w-full bg-sidebar text-sidebar-foreground hover:bg-sidebar-accent border border-sidebar-border font-semibold">Fechar</Button>
               </DrawerClose>
             </DrawerFooter>
           </DrawerContent>

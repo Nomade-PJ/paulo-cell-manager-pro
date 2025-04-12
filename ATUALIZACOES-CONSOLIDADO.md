@@ -294,43 +294,49 @@ Este documento contém um registro consolidado de todas as atualizações realiz
   - Adicionado espaço para código de verificação/QR code
   - Atualizado o formulário de registro de serviço para destacar a importância da data de previsão e das observações
 
-## Atualizações Recentes (Agosto 2024)
+## Rebranding e Atualizações Visuais (Junho/2024)
 
-### 1. Alterações na Página de Configurações
+### 19. Mudança de Nome do Sistema
+- **Alteração:** Atualização do nome do sistema de "Paulo Cell Manager" para "Paulo Cell Sistema"
+- **Arquivos afetados:** 
+  - `paulo-cell-manager-pro/src/components/Sidebar.tsx`
+  - `paulo-cell-manager-pro/src/pages/Login.tsx`
+  - `paulo-cell-manager-pro/src/pages/LandingPage.tsx`
+- **Detalhes:** Modificação do nome do sistema em todos os pontos de contato com o usuário para refletir a nova identidade.
+- **Solução Técnica:** 
+  - Atualizado o texto no cabeçalho da barra lateral para "Paulo Cell Sistema"
+  - Modificado o título na tela de login para "Paulo Cell Sistema"
+  - Alterado o texto no rodapé do login para "Sistema Desenvolvido por Nomade-PJ © 2025"
+  - Ajustada a página inicial para usar o novo nome em todos os textos
 
-- Removida a guia de "Notificações" na página de configurações
-- Simplificada a interface para mostrar apenas as guias de "Perfil" e "Aparência"
-- Mantida a funcionalidade do sino de notificação no canto superior direito
+## Melhorias de Interface (Julho/2024)
 
-### 2. Alterações na Página de Inventário
+### 20. Ajuste de Consistência Visual no Botão Fechar
+- **Alteração:** Correção da aparência do botão "Fechar" no menu expansível para manter consistência com o tema escuro
+- **Arquivos afetados:** 
+  - `paulo-cell-manager-pro/src/components/BottomNav.tsx`
+- **Detalhes:** Modificação do estilo do botão "Fechar" para que utilize as cores do tema escuro, melhorando a consistência visual da interface.
+- **Solução Técnica:** 
+  - Alteradas as classes CSS do botão para usar as cores do tema principal (bg-sidebar)
+  - Aplicada borda sutil para melhor visibilidade (border-sidebar-border)
+  - Implementado efeito hover apropriado para o tema escuro (hover:bg-sidebar-accent)
+  - Mantida a fonte em negrito para legibilidade
 
-#### Campos de Preço
+## Melhorias no Módulo de Documentos Fiscais (Julho/2024)
 
-- Modificados os campos de preço (Preço de Custo e Preço de Venda) para serem opcionais
-- Removidos os asteriscos (*) dos campos de preço, indicando que não são obrigatórios
-- Alterados para exibir campos vazios em vez de zeros, permitindo entrada mais intuitiva
-- Implementada uma solução que permite apagar completamente os valores existentes ao editar um item
-- Adicionados estados separados (`costPriceInput` e `sellingPriceInput`) para gerenciar o valor exibido nos campos
-- Modificado o comportamento do input para usar `type="text"` com `inputMode="decimal"` para melhor controle da entrada
-
-#### Validação de Formulário
-
-- Atualizado o esquema de validação Zod para tornar os campos de preço opcionais
-- Alterada a validação de preço para permitir valores zero (de `positive` para `nonnegative`)
-- Melhorada a conversão de string para número nos campos de preço
-- Implementada validação para garantir apenas entrada de caracteres numéricos e ponto decimal
-
-#### Manipulação de Dados
-
-- Ajustada a manipulação de formulários para tratar corretamente valores vazios ou zero
-- Atualizada a lógica de submissão para definir valores vazios como zero no banco de dados
-- Implementada limpeza de estados quando o diálogo de edição é fechado
-
-### 3. Atualizações de Interface
-
-- Atualizado o título na página de login de "Paulo Cell Manager" para "Paulo Cell Sistema"
-- Atualizado o texto do rodapé na página de login para "Sistema Desenvolvido por Nomade-PJ © 2025"
-- Atualizado o texto do rodapé na barra lateral de "Paulo Cell Manager v1.0.0" para "Paulo Cell Sistema"
+### 21. Emissão de Documentos Fiscais sem Dependência de API SEFAZ
+- **Alteração:** Implementação de sistema para emissão de documentos fiscais fictícios sem depender de APIs externas da SEFAZ
+- **Arquivos afetados:** 
+  - `paulo-cell-manager-pro/src/components/NewDocumentDialog.tsx`
+  - `paulo-cell-manager-pro/src/components/DocumentActionMenu.tsx`
+- **Detalhes:** Adaptação do sistema para permitir a emissão de documentos fiscais (NF, NFCe, NFS) de forma simulada, adequado para regiões onde a API da SEFAZ não está disponível.
+- **Solução Técnica:** 
+  - Criada função `generateFiscalData` para gerar dados fiscais fictícios com formato válido
+  - Implementada geração de chaves de acesso, números de protocolo e séries de documentos
+  - Adaptado o processo de cancelamento e reemissão para trabalhar sem APIs externas
+  - Implementada geração de HTML para download como alternativa aos PDFs oficiais
+  - Adicionada simulação de envio por email com geração de logs no banco de dados
+  - Mantida a estrutura de notificações para interações com documentos
 
 ## Resumo dos Benefícios
 
@@ -394,36 +400,15 @@ O código-fonte do sistema é mantido no seguinte repositório:
    - `paulo-cell-manager-pro/src/components/Layout.tsx`
    - `paulo-cell-manager-pro/src/components/Header.tsx`
    - `paulo-cell-manager-pro/src/index.css`
-   - `paulo-cell-manager-pro/src/components/ServiceThermalPrinter.tsx`
+   - `paulo-cell-manager-pro/src/components/ServiceThermalPrinter.tsx` (otimização para impressoras térmicas)
    - `paulo-cell-manager-pro/src/pages/ServiceRegistration.tsx`
+   - `paulo-cell-manager-pro/src/pages/Inventory.tsx` (campos de preço opcionais)
+   - `paulo-cell-manager-pro/src/pages/Settings.tsx` (remoção da guia de notificações)
+   - `paulo-cell-manager-pro/ATUALIZACOES-CONSOLIDADO.md`
 
 ### Possíveis conflitos:
 
 Ao fazer o merge, esteja atento para possíveis conflitos nos seguintes arquivos:
 - `paulo-cell-manager-pro/src/components/Layout.tsx` (devido à mudança de layout)
 - `paulo-cell-manager-pro/src/index.css` (devido às novas variáveis e estilos para a barra flutuante)
-- `paulo-cell-manager-pro/src/components/Header.tsx` (devido às alterações para compatibilidade com a barra inferior)
-
-### Atualização no servidor
-
-Para atualizar o servidor Hostinger, use os seguintes comandos no terminal SSH:
-
-```bash
-# Acesse o diretório do projeto
-cd /var/www/paulo-cell-manager-pro
-
-# Faça backup das alterações locais no index.css (se houver)
-cp src/index.css src/index.css.backup
-
-# Puxe as atualizações mais recentes do GitHub
-git pull origin main
-
-# Instale dependências
-npm install
-
-# Construa o projeto com as novas alterações
-npm run build
-
-# Reinicie o servidor web
-sudo systemctl restart nginx
-``` 
+- `paulo-cell-manager-pro/src/components/Header.tsx`

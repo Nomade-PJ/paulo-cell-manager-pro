@@ -72,33 +72,43 @@ export const ServiceThermalPrinter = ({ service, children }: ServiceThermalPrint
       <head>
         <title>Comprovante de Serviço</title>
         <style>
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
           body {
-            font-family: 'Courier New', monospace;
+            font-family: 'Arial', sans-serif;
             width: 80mm;
             margin: 0;
-            padding: 10px;
+            padding: 2mm;
             font-size: 10pt;
+            background-color: white;
+            color: black;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
           .header {
             text-align: center;
             font-weight: bold;
-            margin-bottom: 10px;
+            margin-bottom: 2mm;
             font-size: 12pt;
           }
           .info {
-            margin-bottom: 5px;
+            margin-bottom: 1mm;
+            line-height: 1.2;
           }
           .divider {
-            border-top: 1px dashed #000;
-            margin: 10px 0;
+            border-top: 1px dashed black;
+            margin: 2mm 0;
+            clear: both;
           }
           .bold {
             font-weight: bold;
           }
           .footer {
             text-align: center;
-            margin-top: 10px;
-            font-size: 9pt;
+            margin-top: 2mm;
+            font-size: 8pt;
           }
           .align-right {
             text-align: right;
@@ -106,15 +116,18 @@ export const ServiceThermalPrinter = ({ service, children }: ServiceThermalPrint
           .observations {
             white-space: pre-wrap;
             font-size: 9pt;
-            margin-top: 5px;
-            padding: 5px;
-            border-left: 1px solid #ccc;
+            margin-top: 1mm;
+            padding: 1mm;
+            border-left: 1px solid black;
+            max-width: 100%;
+            word-break: break-word;
           }
           .order-number {
             font-weight: bold;
             font-size: 14pt;
             text-align: center;
-            margin-bottom: 5px;
+            margin-bottom: 1mm;
+            letter-spacing: 1px;
           }
           .small-text {
             font-size: 8pt;
@@ -123,26 +136,27 @@ export const ServiceThermalPrinter = ({ service, children }: ServiceThermalPrint
             text-align: center;
           }
           .qr-placeholder {
-            margin: 10px auto;
-            width: 70px;
-            height: 70px;
-            border: 1px solid #000;
+            margin: 2mm auto;
+            width: 20mm;
+            height: 20mm;
+            border: 1px solid black;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 8pt;
+            font-size: 7pt;
             text-align: center;
           }
-          /* Hide useless items for printing */
+          /* Otimizações específicas para impressoras térmicas */
           @media print {
             html, body {
               width: 80mm;
               height: auto;
-              overflow: hidden;
+              margin: 0 !important;
+              padding: 0 !important;
             }
-            @page {
-              margin: 0;
-              size: 80mm auto;
+            * {
+              box-shadow: none !important;
+              text-shadow: none !important;
             }
           }
         </style>
@@ -197,14 +211,14 @@ export const ServiceThermalPrinter = ({ service, children }: ServiceThermalPrint
         
         <div class="centered">
           <div class="qr-placeholder">
-            Código de verificação: ${orderNumber}
+            OS: ${orderNumber}
           </div>
         </div>
         
         <div class="footer">
-          Comprovante de Serviço
+          * Comprovante de Serviço *
           <br />
-          Sistema Desenvolvido por Nomade-PJ © 2025
+          Sistema Desenvolvido por Nomade-PJ
           <br />
           <span class="small-text">${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}</span>
         </div>
@@ -226,16 +240,39 @@ export const ServiceThermalPrinter = ({ service, children }: ServiceThermalPrint
       
       // Wait for content to load before printing
       printFrame.onload = () => {
-        printFrame.contentWindow?.print();
-        // Remove the iframe after printing
-        setTimeout(() => {
-          window.document.body.removeChild(printFrame);
-        }, 1000);
-        
-        toast({
-          title: "Impressão iniciada",
-          description: "A ordem de serviço está sendo impressa.",
-        });
+        try {
+          // Configurar impressão para papel térmico
+          const printOptions = {
+            scale: 1,
+            silent: true  // Omitir diálogo de impressão se suportado
+          };
+          
+          printFrame.contentWindow?.print();
+          
+          // Remove the iframe after printing
+          setTimeout(() => {
+            if (window.document.body.contains(printFrame)) {
+              window.document.body.removeChild(printFrame);
+            }
+          }, 1000);
+          
+          toast({
+            title: "Impressão iniciada",
+            description: "A ordem de serviço está sendo impressa.",
+          });
+        } catch (error) {
+          console.error("Erro ao imprimir:", error);
+          toast({
+            variant: "destructive",
+            title: "Erro na impressão",
+            description: "Não foi possível imprimir o comprovante.",
+          });
+          
+          // Certifique-se de remover o iframe mesmo em caso de erro
+          if (window.document.body.contains(printFrame)) {
+            window.document.body.removeChild(printFrame);
+          }
+        }
       };
     }
   };
