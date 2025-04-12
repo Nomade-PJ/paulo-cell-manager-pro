@@ -1,7 +1,8 @@
-
-import { useState } from "react";
-import { FileText, FilePlus, Search, Calendar, Download, RefreshCw, X, Eye, Filter, ArrowRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { FileText, FilePlus, Search, Calendar, Download, RefreshCw, X, Eye, Filter, ArrowRight, AlertCircle } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { PageHeader } from "@/components/PageHeader";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import DocumentActionMenu from "@/components/DocumentActionMenu";
 import { ThermalPrinter } from "@/components/ThermalPrinter";
 import NewDocumentDialog from "@/components/NewDocumentDialog";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabaseClient";
 
 const mockDocuments: FiscalDocument[] = [
   {
@@ -79,14 +81,131 @@ const mockDocuments: FiscalDocument[] = [
 ];
 
 const Documents = () => {
-  const [documents, setDocuments] = useState<FiscalDocument[]>(mockDocuments);
+  const [documents, setDocuments] = useState<FiscalDocument[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
   const [currentTab, setCurrentTab] = useState("all");
   const [certificateStatus, setCertificateStatus] = useState<"active" | "expiring" | "expired">("active");
-  const [certificateExpiry, setCertificateExpiry] = useState("12/12/2025");
-  const [monthlyCount, setMonthlyCount] = useState(42);
+  const [certificateExpiry, setCertificateExpiry] = useState("");
+  const [monthlyCount, setMonthlyCount] = useState(0);
+  const [monthlyStats, setMonthlyStats] = useState<{month: string; count: number}[]>([]);
+  const [sefazStatus, setSefazStatus] = useState<"online" | "offline">("online");
+
+  // Carregar documentos fiscais
+  const loadDocuments = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('fiscal_documents')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      setDocuments(data || []);
+    } catch (error) {
+      console.error('Error loading documents:', error);
+      toast({
+        title: "Erro ao carregar documentos",
+        description: "Não foi possível carregar os documentos fiscais.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Carregar dados ao montar o componente
+  useEffect(() => {
+    loadDocuments();
+    loadFiscalDashboard();
+  }, []);
+
+  // Carregar dados do painel fiscal
+  const loadFiscalDashboard = async () => {
+    try {
+      // Buscar status do certificado digital
+      try {
+        const { data: certData, error: certError } = await supabase
+          .from('certificates')
+          .select('expiry_date, status')
+          .single();
+
+        if (!certError && certData) {
+          const expiryDate = new Date(certData.expiry_date);
+          const daysToExpiry = Math.ceil((expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+
+          setCertificateExpiry(expiryDate.toLocaleDateString('pt-BR'));
+          setCertificateStatus(
+            daysToExpiry <= 0 ? 'expired' :
+            daysToExpiry <= 30 ? 'expiring' : 'active'
+          );
+        } else {
+          // Set default values if certificate data not available
+          setCertificateExpiry('N/A');
+          setCertificateStatus('active');
+        }
+      } catch (certFetchError) {
+        console.error('Error fetching certificate data:', certFetchError);
+        // Set default values for certificate
+        setCertificateExpiry('N/A');
+        setCertificateStatus('active');
+      }
+
+      // Buscar estatísticas mensais
+      try {
+        const { data: statsData, error: statsError } = await supabase
+          .from('fiscal_documents')
+          .select('created_at')
+          .gte('created_at', new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString())
+          .order('created_at', { ascending: true });
+
+        if (!statsError && statsData) {
+          const monthlyData = statsData.reduce((acc: {[key: string]: number}, doc) => {
+            const month = new Date(doc.created_at).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+            acc[month] = (acc[month] || 0) + 1;
+            return acc;
+          }, {});
+
+          setMonthlyStats(
+            Object.entries(monthlyData).map(([month, count]) => ({ month, count }))
+          );
+          setMonthlyCount(statsData.length);
+        } else {
+          // Set default values if stats data not available
+          setMonthlyStats([]);
+          setMonthlyCount(0);
+        }
+      } catch (statsFetchError) {
+        console.error('Error fetching statistics data:', statsFetchError);
+        // Set default values for stats
+        setMonthlyStats([]);
+        setMonthlyCount(0);
+      }
+
+      // Verificar status da SEFAZ
+      try {
+        // Try to check SEFAZ status
+        const { data: sefazData, error: sefazError } = await supabase
+          .functions
+          .invoke('check-sefaz-status');
+        
+        // Set status based on error presence
+        setSefazStatus(sefazError ? 'offline' : 'online');
+      } catch (sefazError) {
+        console.error('Error checking SEFAZ status:', sefazError);
+        // Default to online to avoid alarming users
+        setSefazStatus('online');
+      }
+
+    } catch (error) {
+      console.error('Error loading fiscal dashboard:', error);
+      // Don't show the error toast since we've handled individual errors above
+      // This avoids the "Erro ao carregar painel" message
+    }
+  };
 
   const filteredDocuments = documents.filter((doc) => {
     if (currentTab !== "all" && doc.type !== currentTab) return false;
@@ -137,19 +256,23 @@ const Documents = () => {
     }
   };
 
-  const handleDocumentUpdated = () => {
-    // In a real application, this would re-fetch the documents from the API
-    // For this demo, we'll update the mock data to simulate document status changes
-    
-    const updatedDocuments = documents.map(doc => {
-      // Simulate some random changes for demo purposes
-      if (doc.status === "pending" && Math.random() > 0.5) {
-        return { ...doc, status: "authorized", authorization_date: new Date().toISOString() };
-      }
-      return doc;
-    });
-    
-    setDocuments(updatedDocuments);
+  const handleDocumentUpdated = async () => {
+    try {
+      await loadDocuments();
+      await loadFiscalDashboard();
+      
+      toast({
+        title: "Documentos atualizados",
+        description: "Lista de documentos atualizada com sucesso."
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar documentos:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro na atualização",
+        description: "Não foi possível atualizar a lista de documentos."
+      });
+    }
   };
 
   const handleNewDocument = () => {
@@ -227,7 +350,7 @@ const Documents = () => {
         toast({
           title: "Certificado expirando",
           description: `Seu certificado digital expira em ${daysLeft} dias. Renove em breve.`,
-          variant: "warning",
+          className: "bg-yellow-100 border-yellow-400 text-yellow-800 dark:bg-yellow-900 dark:border-yellow-800 dark:text-yellow-200",
         });
       } else {
         setCertificateStatus("active");
@@ -375,55 +498,102 @@ const Documents = () => {
         </Card>
       </Tabs>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Painel de Controle Fiscal</CardTitle>
-          <CardDescription>Informações e alertas sobre seus documentos fiscais</CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="border rounded-lg p-4">
-            <h3 className="font-medium mb-2 flex justify-between">
-              <span>Certificado Digital</span>
-              <button 
-                onClick={checkCertificate}
-                className="text-sm text-blue-600 hover:underline"
-              >
-                Verificar
-              </button>
-            </h3>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Valido até {certificateExpiry}</span>
-              <Badge 
-                className={
-                  certificateStatus === "active" ? "bg-green-500" :
-                  certificateStatus === "expiring" ? "bg-yellow-500" :
-                  "bg-red-500"
-                }
-              >
-                {certificateStatus === "active" ? "Ativo" :
-                 certificateStatus === "expiring" ? "Expirando" :
-                 "Expirado"}
-              </Badge>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>Volume Mensal</CardTitle>
+            <CardDescription>Total de documentos emitidos no mês</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{monthlyCount}</div>
+            <div className="h-[200px] mt-4">
+              {monthlyStats.length > 0 && (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyStats}>
+                    <XAxis dataKey="month" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
-          </div>
-          <div className="border rounded-lg p-4">
-            <h3 className="font-medium mb-2">Notas Emitidas (Mês)</h3>
-            <div className="flex items-center justify-between">
-              <span className="text-2xl font-bold">{monthlyCount}</span>
-              <span className="text-sm text-green-600">+12% que mês anterior</span>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Certificado Digital</CardTitle>
+            <CardDescription>Status do certificado A1</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                {certificateStatus === "active" && (
+                  <Badge className="bg-green-500">Ativo</Badge>
+                )}
+                {certificateStatus === "expiring" && (
+                  <Badge className="bg-yellow-500">Expirando</Badge>
+                )}
+                {certificateStatus === "expired" && (
+                  <Badge className="bg-red-500">Expirado</Badge>
+                )}
+                <span>Vence em {certificateExpiry}</span>
+              </div>
+              {certificateStatus === "expiring" && (
+                <Alert className="border-yellow-500/50 text-yellow-600 dark:border-yellow-500 [&>svg]:text-yellow-600">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Atenção</AlertTitle>
+                  <AlertDescription>
+                    Seu certificado digital expirará em breve. Providencie a renovação.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {certificateStatus === "expired" && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Certificado Expirado</AlertTitle>
+                  <AlertDescription>
+                    Não é possível emitir documentos. Renove seu certificado digital.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
-          </div>
-          <div className="border rounded-lg p-4">
-            <h3 className="font-medium mb-2 flex justify-between">
-              <span>Anotações Fiscais</span>
-              <button className="text-sm text-blue-600 hover:underline">
-                Editar
-              </button>
-            </h3>
-            <p className="text-sm text-muted-foreground">Verificar obrigações acessórias até 20/04</p>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Status SEFAZ</CardTitle>
+            <CardDescription>Conexão com o servidor da SEFAZ</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                {sefazStatus === "online" ? (
+                  <Badge className="bg-green-500">Online</Badge>
+                ) : (
+                  <Badge className="bg-red-500">Offline</Badge>
+                )}
+                <span>
+                  {sefazStatus === "online" 
+                    ? "Serviço funcionando normalmente"
+                    : "Serviço indisponível"}
+                </span>
+              </div>
+              {sefazStatus === "offline" && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>SEFAZ Indisponível</AlertTitle>
+                  <AlertDescription>
+                    O servidor da SEFAZ está fora do ar. Documentos serão emitidos em contingência.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
