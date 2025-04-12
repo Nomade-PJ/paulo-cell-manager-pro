@@ -52,7 +52,7 @@ const ServiceActionsMenu = ({ service, onUpdate }: ServiceActionsMenuProps) => {
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
 
   const handleEdit = () => {
-    navigate(`/service-registration/${service.customer_id}/${service.device_id}?serviceId=${service.id}`);
+    navigate(`/dashboard/service-registration/${service.customer_id}/${service.device_id}?serviceId=${service.id}`);
   };
 
   const handleDelete = async () => {

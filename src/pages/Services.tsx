@@ -129,7 +129,7 @@ const Services = () => {
   
   // Handle service edit
   const handleEdit = (service) => {
-    navigate(`/service-registration/${service.customer_id}/${service.device_id}?serviceId=${service.id}`);
+    navigate(`/dashboard/service-registration/${service.customer_id}/${service.device_id}?serviceId=${service.id}`);
   };
   
   // Render status badge with appropriate color
