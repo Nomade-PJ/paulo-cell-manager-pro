@@ -39,26 +39,23 @@ const signupSchema = z.object({
   path: ["confirmPassword"]
 });
 
-// Schema para validação da senha de admin
-const adminPasswordSchema = z.object({
-  adminPassword: z.string()
-    .refine((val) => val === "paulocell@admin1", {
-      message: "Senha administrativa incorreta"
-    })
-});
-
 type LoginForm = z.infer<typeof loginSchema>;
 type SignupForm = z.infer<typeof signupSchema>;
-type AdminPasswordForm = z.infer<typeof adminPasswordSchema>;
 
 const Login = () => {
-  const { login, signup } = useAuth();
+  const { login, signup, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
   const [adminDialogOpen, setAdminDialogOpen] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
   const [adminPasswordError, setAdminPasswordError] = useState("");
+
+  // Se já estiver autenticado, redirecionar para a página inicial
+  if (isAuthenticated) {
+    navigate("/", { replace: true });
+    return null;
+  }
 
   const loginForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -81,11 +78,10 @@ const Login = () => {
     setIsLoading(true);
     try {
       await login(values.email, values.password);
-      toast.success("Login realizado com sucesso!");
-      navigate("/");
+      // A navegação será feita automaticamente quando isAuthenticated mudar
     } catch (error: any) {
       console.error(error);
-      toast.error("Erro ao fazer login. Verifique suas credenciais.");
+      // Toast já é chamado no login() do AuthContext
     } finally {
       setIsLoading(false);
     }
@@ -100,7 +96,7 @@ const Login = () => {
       signupForm.reset();
     } catch (error: any) {
       console.error(error);
-      toast.error("Erro ao fazer cadastro. " + (error.message || "Tente novamente mais tarde."));
+      // Toast já é chamado no signup() do AuthContext
     } finally {
       setIsLoading(false);
     }
@@ -131,7 +127,7 @@ const Login = () => {
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid grid-cols-2 mb-4">
                 <TabsTrigger value="login">Login</TabsTrigger>
-                <TabsTrigger value="signup" disabled>Cadastrar</TabsTrigger>
+                <TabsTrigger value="signup" disabled={activeTab !== "signup"}>Cadastrar</TabsTrigger>
               </TabsList>
               <TabsContent value="login" className="space-y-4">
                 <Form {...loginForm}>

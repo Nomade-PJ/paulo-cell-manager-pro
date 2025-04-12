@@ -94,19 +94,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   useEffect(() => {
-    // Get initial session
+    // Função para inicializar a autenticação
     const initializeAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         
-        setAuthState(prev => ({ 
-          ...prev, 
-          session, 
-          user: session?.user || null, 
-          isAuthenticated: !!session,
-        }));
-
-        if (session?.user) {
+        // Primeiro atualizamos o estado com a sessão atual
+        if (session) {
+          setAuthState(prev => ({ 
+            ...prev, 
+            session, 
+            user: session?.user || null, 
+            isAuthenticated: true
+          }));
+          
+          // Buscamos o perfil do usuário após confirmar a sessão
           const profileData = await fetchUserProfile(session.user.id);
           
           setAuthState(prev => ({ 
@@ -115,17 +117,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             isLoading: false 
           }));
         } else {
-          setAuthState(prev => ({ ...prev, isLoading: false }));
+          // Se não houver sessão, garantimos que isLoading seja false
+          setAuthState(prev => ({ 
+            ...prev, 
+            isLoading: false,
+            isAuthenticated: false  
+          }));
         }
       } catch (error) {
         console.error("Error initializing auth:", error);
-        setAuthState(prev => ({ ...prev, isLoading: false }));
+        setAuthState(prev => ({ 
+          ...prev, 
+          isLoading: false,
+          isAuthenticated: false
+        }));
       }
     };
 
-    // Set up authentication state listener
+    // Configurar listener para mudanças no estado de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
+        // Atualizar estado de forma síncrona
         setAuthState(prev => ({ 
           ...prev, 
           session, 
@@ -133,23 +145,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           isAuthenticated: !!session 
         }));
         
+        // Usar setTimeout para evitar deadlocks ao buscar o perfil do usuário
         if (session?.user) {
-          const profileData = await fetchUserProfile(session.user.id);
-          
+          setTimeout(async () => {
+            const profileData = await fetchUserProfile(session.user.id);
+            
+            setAuthState(prev => ({ 
+              ...prev, 
+              profile: profileData || { id: session.user.id, email: session.user.email },
+              isLoading: false 
+            }));
+          }, 0);
+        } else {
           setAuthState(prev => ({ 
             ...prev, 
-            profile: profileData || { id: session.user.id, email: session.user.email }, 
-            isLoading: false 
+            profile: null, 
+            isLoading: false,
+            isAuthenticated: false
           }));
-        } else {
-          setAuthState(prev => ({ ...prev, profile: null, isLoading: false }));
         }
       }
     );
 
+    // Inicializar auth após configurar o listener
     initializeAuth();
 
-    // Set up real-time subscription to profile changes
+    // Configurar subscription para mudanças no perfil
     const profileSubscription = supabase
       .channel('public:profiles')
       .on('postgres_changes', {
@@ -170,6 +191,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       })
       .subscribe();
 
+    // Cleanup das subscriptions
     return () => {
       subscription.unsubscribe();
       profileSubscription.unsubscribe();
@@ -178,8 +200,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      
+      // Feedback de sucesso
+      toast.success("Login realizado com sucesso!");
+      return data;
     } catch (error: any) {
       console.error("Erro de autenticação:", error);
       toast.error("Falha no login: " + error.message);
