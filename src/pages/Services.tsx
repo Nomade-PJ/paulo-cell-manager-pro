@@ -207,7 +207,7 @@ const Services = () => {
                 <SelectValue placeholder="Filtrar por status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem>
+                <SelectItem value="all">Todos os status</SelectItem> {/* This was already correct using "all" instead of empty string */}
                 <SelectItem value="pending">Pendente</SelectItem>
                 <SelectItem value="in_progress">Em andamento</SelectItem>
                 <SelectItem value="waiting_parts">Aguardando peças</SelectItem>

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { FileText, FilePlus, Search, Calendar, Download, Printer, Download as DownloadIcon, RefreshCw, X as Cancel, Eye, Filter, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -17,7 +16,6 @@ import { FiscalDocument } from "@/types";
 import DocumentActionMenu from "@/components/DocumentActionMenu";
 import { ThermalPrinter } from "@/components/ThermalPrinter";
 
-// Mock data for demonstration purposes
 const mockDocuments: FiscalDocument[] = [
   {
     id: "1",
@@ -79,25 +77,20 @@ const mockDocuments: FiscalDocument[] = [
 
 const Documents = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
   const [currentTab, setCurrentTab] = useState("all");
 
-  // Filter documents based on search, status, date, and tab
   const filteredDocuments = mockDocuments.filter((doc) => {
-    // Tab filter
     if (currentTab !== "all" && doc.type !== currentTab) return false;
     
-    // Search filter
     if (searchTerm && 
         !doc.number.toLowerCase().includes(searchTerm.toLowerCase()) && 
         !doc.customer_name.toLowerCase().includes(searchTerm.toLowerCase())) 
       return false;
     
-    // Status filter
-    if (statusFilter && doc.status !== statusFilter) return false;
+    if (statusFilter && statusFilter !== "all" && doc.status !== statusFilter) return false;
     
-    // Date filter
     if (dateFilter && format(new Date(doc.issue_date), "yyyy-MM-dd") !== format(dateFilter, "yyyy-MM-dd")) 
       return false;
     
@@ -124,7 +117,6 @@ const Documents = () => {
     }
   };
 
-  // Get document type label
   const getDocumentTypeLabel = (type: string) => {
     switch (type) {
       case "nf":
@@ -183,7 +175,7 @@ const Documents = () => {
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos</SelectItem>
+                    <SelectItem value="all">Todos</SelectItem>
                     <SelectItem value="authorized">Autorizada</SelectItem>
                     <SelectItem value="pending">Pendente</SelectItem>
                     <SelectItem value="canceled">Cancelada</SelectItem>
@@ -205,12 +197,12 @@ const Documents = () => {
                     />
                   </PopoverContent>
                 </Popover>
-                {(searchTerm || statusFilter || dateFilter) && (
+                {(searchTerm || statusFilter !== "all" || dateFilter) && (
                   <Button 
                     variant="ghost" 
                     onClick={() => {
                       setSearchTerm("");
-                      setStatusFilter("");
+                      setStatusFilter("all");
                       setDateFilter(undefined);
                     }}
                   >
@@ -272,7 +264,6 @@ const Documents = () => {
         </Card>
       </Tabs>
 
-      {/* Fiscal Control Panel Card */}
       <Card>
         <CardHeader>
           <CardTitle>Painel de Controle Fiscal</CardTitle>
