@@ -15,9 +15,10 @@ export function OrganizationSetup() {
   const { createOrganization, userHasOrganization } = useOrganization();
   const navigate = useNavigate();
 
-  // If user already has an organization, redirect to dashboard
+  // Se o usuário já tiver uma organização, redireciona para o dashboard
   useEffect(() => {
     if (userHasOrganization) {
+      console.log("Usuário já tem organização, redirecionando para /dashboard");
       navigate('/dashboard', { replace: true });
     }
   }, [userHasOrganization, navigate]);
@@ -31,16 +32,25 @@ export function OrganizationSetup() {
     
     setIsSubmitting(true);
     try {
+      console.log("Tentando criar organização:", organizationName);
       const organization = await createOrganization(organizationName.trim());
       
       if (organization) {
+        console.log("Organização criada com sucesso:", organization);
         setOrganizationName('');
         toast.success("Organização criada com sucesso!");
-        // Navigate to dashboard after a short delay to allow toast to be seen
+        
+        // Navegue para dashboard após um pequeno atraso para permitir que o toast seja visto
         setTimeout(() => {
+          console.log("Redirecionando para /dashboard");
           navigate('/dashboard', { replace: true });
         }, 1000);
+      } else {
+        console.error("Falha ao criar organização, retorno nulo");
       }
+    } catch (error) {
+      console.error("Erro ao criar organização:", error);
+      toast.error("Houve um erro ao criar a organização. Por favor, tente novamente.");
     } finally {
       setIsSubmitting(false);
     }
