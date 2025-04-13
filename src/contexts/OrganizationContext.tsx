@@ -68,31 +68,41 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         return null;
       }
       
-      // Insert the new organization
+      console.log("Creating organization for user:", authData.user.id);
+
+      // First create the organization
       const { data: orgData, error: orgError } = await supabase
         .from('organizations')
         .insert([{ name }])
         .select('*')
         .single();
-        
-      if (orgError) throw orgError;
       
-      // Update the user's profile with the organization ID
+      if (orgError) {
+        console.error("Error creating organization:", orgError);
+        throw orgError;
+      }
+      
+      console.log("Organization created:", orgData);
+      
+      // Then update the user profile with the organization ID
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ organization_id: orgData.id })
         .eq('id', authData.user.id);
-        
-      if (profileError) throw profileError;
+      
+      if (profileError) {
+        console.error("Error updating profile:", profileError);
+        throw profileError;
+      }
       
       setCurrentOrganization(orgData as Organization);
       setUserHasOrganization(true);
       
       toast.success("Organização criada com sucesso!");
       return orgData as Organization;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to create organization:", error);
-      toast.error("Erro ao criar organização");
+      toast.error(`Erro ao criar organização: ${error.message || 'Erro desconhecido'}`);
       return null;
     }
   };
@@ -111,9 +121,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       setCurrentOrganization(data as Organization);
       toast.success("Organização atualizada com sucesso!");
       return data as Organization;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to update organization:", error);
-      toast.error("Erro ao atualizar organização");
+      toast.error(`Erro ao atualizar organização: ${error.message || 'Erro desconhecido'}`);
       return null;
     }
   };
@@ -147,9 +157,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       
       toast.success("Organização selecionada com sucesso!");
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to set current organization:", error);
-      toast.error("Erro ao selecionar organização");
+      toast.error(`Erro ao selecionar organização: ${error.message || 'Erro desconhecido'}`);
       return false;
     }
   };

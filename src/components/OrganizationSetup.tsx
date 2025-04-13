@@ -1,26 +1,46 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { BuildingIcon } from 'lucide-react';
+import { toast } from 'sonner';
 
 export function OrganizationSetup() {
   const [organizationName, setOrganizationName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { createOrganization } = useOrganization();
+  const { createOrganization, userHasOrganization } = useOrganization();
+  const navigate = useNavigate();
+
+  // If user already has an organization, redirect to dashboard
+  useEffect(() => {
+    if (userHasOrganization) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [userHasOrganization, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!organizationName.trim()) return;
+    if (!organizationName.trim()) {
+      toast.error("O nome da organização não pode estar vazio");
+      return;
+    }
     
     setIsSubmitting(true);
     try {
-      await createOrganization(organizationName.trim());
-      setOrganizationName('');
+      const organization = await createOrganization(organizationName.trim());
+      
+      if (organization) {
+        setOrganizationName('');
+        toast.success("Organização criada com sucesso!");
+        // Navigate to dashboard after a short delay to allow toast to be seen
+        setTimeout(() => {
+          navigate('/dashboard', { replace: true });
+        }, 1000);
+      }
     } finally {
       setIsSubmitting(false);
     }

@@ -19,7 +19,10 @@ export async function getCurrentUserOrganizationId(): Promise<string | null> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     
-    if (!user) return null;
+    if (!user) {
+      console.log("No authenticated user found");
+      return null;
+    }
     
     const { data: profile, error } = await supabase
       .from('profiles')
@@ -27,10 +30,17 @@ export async function getCurrentUserOrganizationId(): Promise<string | null> {
       .eq('id', user.id)
       .single();
       
-    if (error || !profile || !profile.organization_id) {
+    if (error) {
+      console.error("Error getting user profile:", error);
       return null;
     }
     
+    if (!profile || !profile.organization_id) {
+      console.log("User has no organization_id in their profile");
+      return null;
+    }
+    
+    console.log("User organization_id:", profile.organization_id);
     return profile.organization_id;
   } catch (error) {
     console.error("Failed to get user organization:", error);
