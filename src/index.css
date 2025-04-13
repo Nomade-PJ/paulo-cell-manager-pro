@@ -243,3 +243,36 @@
     transform: translateX(-50%);
   }
 }
+
+/* Estilos específicos para a tela de login */
+.login-gradient-bg {
+  background-image: 
+    radial-gradient(circle at 10% 30%, rgba(59, 130, 246, 0.15), transparent 30%),
+    radial-gradient(circle at 90% 70%, rgba(124, 58, 237, 0.15), transparent 30%),
+    radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.08), transparent 50%);
+}
+
+.form-input-icon {
+  @apply absolute left-3 top-1/2 -translate-y-1/2 text-slate-400;
+}
+
+.form-input-with-icon {
+  @apply pl-10;
+}
+
+/* Animação de pulso para o botão de login */
+@keyframes pulse-border {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+.pulse-animation {
+  animation: pulse-border 2s infinite;
+}

@@ -393,7 +393,7 @@ Estas atualizações garantem:
 
 ---
 
-*Última atualização: Agosto 2024*
+*Última atualização: Maio 2025*
 
 ## Instruções para Atualização do Repositório
 
@@ -413,7 +413,7 @@ Para enviar estas atualizações para o repositório GitHub, siga os passos abai
 
 3. **Crie um commit com mensagem descritiva**
    ```bash
-   git commit -m "Atualização Julho 2024: Barra de navegação inferior flutuante e melhorias na impressão térmica"
+   git commit -m "Atualização Maio 2025: Redesign da tela de login com animações e melhorias de usabilidade"
    ```
 
 4. **Envie as alterações para o GitHub**
@@ -428,22 +428,13 @@ O código-fonte do sistema é mantido no seguinte repositório:
 
 ### Principais arquivos atualizados nesta versão:
 
-1. **Novos arquivos:**
-   - `paulo-cell-manager-pro/src/components/BottomNav.tsx`
-
-2. **Arquivos modificados:**
-   - `paulo-cell-manager-pro/src/components/Layout.tsx`
-   - `paulo-cell-manager-pro/src/components/Header.tsx`
-   - `paulo-cell-manager-pro/src/index.css`
-   - `paulo-cell-manager-pro/src/components/ServiceThermalPrinter.tsx` (otimização para impressoras térmicas)
-   - `paulo-cell-manager-pro/src/pages/ServiceRegistration.tsx`
-   - `paulo-cell-manager-pro/src/pages/Inventory.tsx` (campos de preço opcionais)
-   - `paulo-cell-manager-pro/src/pages/Settings.tsx` (remoção da guia de notificações)
-   - `paulo-cell-manager-pro/ATUALIZACOES-CONSOLIDADO.md`
+1. **Arquivos modificados:**
+   - `paulo-cell-manager-pro/src/pages/Login.tsx` (redesign completo da tela de login)
+   - `paulo-cell-manager-pro/src/index.css` (adição de novos estilos para a tela de login)
+   - `paulo-cell-manager-pro/ATUALIZACOES-CONSOLIDADO.md` (documentação das melhorias)
 
 ### Possíveis conflitos:
 
 Ao fazer o merge, esteja atento para possíveis conflitos nos seguintes arquivos:
-- `paulo-cell-manager-pro/src/components/Layout.tsx` (devido à mudança de layout)
-- `paulo-cell-manager-pro/src/index.css` (devido às novas variáveis e estilos para a barra flutuante)
-- `paulo-cell-manager-pro/src/components/Header.tsx`
+- `paulo-cell-manager-pro/src/index.css` (devido às novas variáveis e estilos para a tela de login)
+- `paulo-cell-manager-pro/src/pages/Login.tsx` (devido às alterações estruturais no componente)
