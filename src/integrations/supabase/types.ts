@@ -167,6 +167,42 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          action_link: string | null
+          created_at: string | null
+          description: string
+          id: string
+          read: boolean | null
+          related_id: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          action_link?: string | null
+          created_at?: string | null
+          description: string
+          id?: string
+          read?: boolean | null
+          related_id?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          action_link?: string | null
+          created_at?: string | null
+          description?: string
+          id?: string
+          read?: boolean | null
+          related_id?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

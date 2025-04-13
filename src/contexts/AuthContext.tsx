@@ -96,12 +96,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   useEffect(() => {
-    // Função para inicializar a autenticação
     const initializeAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         
-        // Primeiro atualizamos o estado com a sessão atual
         if (session) {
           setAuthState(prev => ({ 
             ...prev, 
@@ -110,7 +108,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             isAuthenticated: true
           }));
           
-          // Buscamos o perfil do usuário após confirmar a sessão
           const profileData = await fetchUserProfile(session.user.id);
           
           setAuthState(prev => ({ 
@@ -119,7 +116,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             isLoading: false 
           }));
         } else {
-          // Se não houver sessão, garantimos que isLoading seja false
           setAuthState(prev => ({ 
             ...prev, 
             isLoading: false,
@@ -136,10 +132,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
 
-    // Configurar listener para mudanças no estado de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        // Atualizar estado de forma síncrona
         setAuthState(prev => ({ 
           ...prev, 
           session, 
@@ -147,7 +141,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           isAuthenticated: !!session 
         }));
         
-        // Usar setTimeout para evitar deadlocks ao buscar o perfil do usuário
         if (session?.user) {
           setTimeout(async () => {
             const profileData = await fetchUserProfile(session.user.id);
@@ -169,10 +162,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     );
 
-    // Inicializar auth após configurar o listener
     initializeAuth();
 
-    // Configurar subscription para mudanças no perfil
     const profileSubscription = supabase
       .channel('public:profiles')
       .on('postgres_changes', {
@@ -193,7 +184,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       })
       .subscribe();
 
-    // Cleanup das subscriptions
     return () => {
       subscription.unsubscribe();
       profileSubscription.unsubscribe();
@@ -210,7 +200,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (error) throw error;
 
-      // Update authenticated state
       setAuthState(prev => ({
         ...prev,
         session: data.session,
@@ -218,7 +207,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         isAuthenticated: true,
       }));
       
-      // Redirect to dashboard instead of root
       navigate('/dashboard');
       
       toast.success("Login bem-sucedido!");
@@ -262,7 +250,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (error) throw error;
 
-      // Criar perfil para o usuário se o cadastro foi bem-sucedido
       if (data?.user) {
         const { error: profileError } = await supabase
           .from('profiles')
@@ -299,7 +286,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const contextValue = {
+  const contextValue: AuthContextProps = {
     ...authState,
     login,
     loginWithGoogle,

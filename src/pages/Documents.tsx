@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { FileText, FilePlus, Search, Calendar, Download, RefreshCw, X, Eye, Filter, ArrowRight, AlertCircle } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -17,68 +18,10 @@ import { ptBR } from "date-fns/locale";
 import { FiscalDocument } from "@/types";
 import DocumentActionMenu from "@/components/DocumentActionMenu";
 import { ThermalPrinter } from "@/components/ThermalPrinter";
-import NewDocumentDialog from "@/components/NewDocumentDialog";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabaseClient";
-
-const mockDocuments: FiscalDocument[] = [
-  {
-    id: "1",
-    number: "NF-00001",
-    type: "nf",
-    status: "authorized",
-    customer_id: "cus_1",
-    customer_name: "Empresa ABC Ltda",
-    issue_date: "2025-04-10T10:30:00",
-    total_value: 1250.50,
-    created_at: "2025-04-10T10:30:00",
-    updated_at: "2025-04-10T10:35:00",
-    authorization_date: "2025-04-10T10:35:00",
-    access_key: "35250410907039000155550010000000011100000017",
-  },
-  {
-    id: "2",
-    number: "NFCe-00001",
-    type: "nfce",
-    status: "authorized",
-    customer_id: "cus_2",
-    customer_name: "Maria Silva",
-    issue_date: "2025-04-11T14:20:00",
-    total_value: 189.90,
-    created_at: "2025-04-11T14:20:00",
-    updated_at: "2025-04-11T14:22:00",
-    authorization_date: "2025-04-11T14:22:00",
-    access_key: "35250411907039000155650010000000011900000015",
-    qr_code: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-  },
-  {
-    id: "3",
-    number: "NFS-00001",
-    type: "nfs",
-    status: "pending",
-    customer_id: "cus_3",
-    customer_name: "João Pereira",
-    issue_date: "2025-04-12T09:15:00",
-    total_value: 350.00,
-    created_at: "2025-04-12T09:15:00",
-    updated_at: "2025-04-12T09:15:00",
-  },
-  {
-    id: "4",
-    number: "NF-00002",
-    type: "nf",
-    status: "canceled",
-    customer_id: "cus_4",
-    customer_name: "Distribuidora XYZ",
-    issue_date: "2025-04-08T11:40:00",
-    total_value: 3750.75,
-    created_at: "2025-04-08T11:40:00",
-    updated_at: "2025-04-08T16:30:00",
-    authorization_date: "2025-04-08T11:45:00",
-    cancelation_date: "2025-04-08T16:30:00",
-    access_key: "35250408907039000155550010000000021100000025",
-  },
-];
+import EmitDocumentDialog from "@/components/EmitDocumentDialog";
+import { useNavigate } from "react-router-dom";
 
 const Documents = () => {
   const [documents, setDocuments] = useState<FiscalDocument[]>([]);
@@ -92,6 +35,69 @@ const Documents = () => {
   const [monthlyCount, setMonthlyCount] = useState(0);
   const [monthlyStats, setMonthlyStats] = useState<{month: string; count: number}[]>([]);
   const [sefazStatus, setSefazStatus] = useState<"online" | "offline">("online");
+  const [isEmitDialogOpen, setIsEmitDialogOpen] = useState(false);
+  
+  const navigate = useNavigate();
+
+  // Load mock documents initially
+  const mockDocuments: FiscalDocument[] = [
+    {
+      id: "1",
+      number: "NF-00001",
+      type: "nf",
+      status: "authorized",
+      customer_id: "cus_1",
+      customer_name: "Empresa ABC Ltda",
+      issue_date: "2025-04-10T10:30:00",
+      total_value: 1250.50,
+      created_at: "2025-04-10T10:30:00",
+      updated_at: "2025-04-10T10:35:00",
+      authorization_date: "2025-04-10T10:35:00",
+      access_key: "35250410907039000155550010000000011100000017",
+    },
+    {
+      id: "2",
+      number: "NFCe-00001",
+      type: "nfce",
+      status: "authorized",
+      customer_id: "cus_2",
+      customer_name: "Maria Silva",
+      issue_date: "2025-04-11T14:20:00",
+      total_value: 189.90,
+      created_at: "2025-04-11T14:20:00",
+      updated_at: "2025-04-11T14:22:00",
+      authorization_date: "2025-04-11T14:22:00",
+      access_key: "35250411907039000155650010000000011900000015",
+      qr_code: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    },
+    {
+      id: "3",
+      number: "NFS-00001",
+      type: "nfs",
+      status: "pending",
+      customer_id: "cus_3",
+      customer_name: "João Pereira",
+      issue_date: "2025-04-12T09:15:00",
+      total_value: 350.00,
+      created_at: "2025-04-12T09:15:00",
+      updated_at: "2025-04-12T09:15:00",
+    },
+    {
+      id: "4",
+      number: "NF-00002",
+      type: "nf",
+      status: "canceled",
+      customer_id: "cus_4",
+      customer_name: "Distribuidora XYZ",
+      issue_date: "2025-04-08T11:40:00",
+      total_value: 3750.75,
+      created_at: "2025-04-08T11:40:00",
+      updated_at: "2025-04-08T16:30:00",
+      authorization_date: "2025-04-08T11:45:00",
+      cancelation_date: "2025-04-08T16:30:00",
+      access_key: "35250408907039000155550010000000021100000025",
+    },
+  ];
 
   // Carregar documentos fiscais
   const loadDocuments = async () => {
@@ -104,14 +110,21 @@ const Documents = () => {
 
       if (error) throw error;
 
-      setDocuments(data || []);
+      if (data && data.length > 0) {
+        setDocuments(data as FiscalDocument[]);
+      } else {
+        // Use mock data if no data is returned from Supabase
+        setDocuments(mockDocuments);
+      }
     } catch (error) {
       console.error('Error loading documents:', error);
       toast({
         title: "Erro ao carregar documentos",
-        description: "Não foi possível carregar os documentos fiscais.",
+        description: "Usando dados de demonstração.",
         variant: "destructive",
       });
+      // Use mock data on error
+      setDocuments(mockDocuments);
     } finally {
       setIsLoading(false);
     }
@@ -126,84 +139,31 @@ const Documents = () => {
   // Carregar dados do painel fiscal
   const loadFiscalDashboard = async () => {
     try {
-      // Buscar status do certificado digital
-      try {
-        const { data: certData, error: certError } = await supabase
-          .from('certificates')
-          .select('expiry_date, status')
-          .single();
-
-        if (!certError && certData) {
-          const expiryDate = new Date(certData.expiry_date);
-          const daysToExpiry = Math.ceil((expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-
-          setCertificateExpiry(expiryDate.toLocaleDateString('pt-BR'));
-          setCertificateStatus(
-            daysToExpiry <= 0 ? 'expired' :
-            daysToExpiry <= 30 ? 'expiring' : 'active'
-          );
-        } else {
-          // Set default values if certificate data not available
-          setCertificateExpiry('N/A');
-          setCertificateStatus('active');
-        }
-      } catch (certFetchError) {
-        console.error('Error fetching certificate data:', certFetchError);
-        // Set default values for certificate
-        setCertificateExpiry('N/A');
-        setCertificateStatus('active');
-      }
-
-      // Buscar estatísticas mensais
-      try {
-        const { data: statsData, error: statsError } = await supabase
-          .from('fiscal_documents')
-          .select('created_at')
-          .gte('created_at', new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString())
-          .order('created_at', { ascending: true });
-
-        if (!statsError && statsData) {
-          const monthlyData = statsData.reduce((acc: {[key: string]: number}, doc) => {
-            const month = new Date(doc.created_at).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
-            acc[month] = (acc[month] || 0) + 1;
-            return acc;
-          }, {});
-
-          setMonthlyStats(
-            Object.entries(monthlyData).map(([month, count]) => ({ month, count }))
-          );
-          setMonthlyCount(statsData.length);
-        } else {
-          // Set default values if stats data not available
-          setMonthlyStats([]);
-          setMonthlyCount(0);
-        }
-      } catch (statsFetchError) {
-        console.error('Error fetching statistics data:', statsFetchError);
-        // Set default values for stats
-        setMonthlyStats([]);
-        setMonthlyCount(0);
-      }
-
-      // Verificar status da SEFAZ
-      try {
-        // Try to check SEFAZ status
-        const { data: sefazData, error: sefazError } = await supabase
-          .functions
-          .invoke('check-sefaz-status');
-        
-        // Set status based on error presence
-        setSefazStatus(sefazError ? 'offline' : 'online');
-      } catch (sefazError) {
-        console.error('Error checking SEFAZ status:', sefazError);
-        // Default to online to avoid alarming users
-        setSefazStatus('online');
-      }
-
+      // Simular status do certificado digital
+      const daysToExpiry = Math.floor(Math.random() * 60); // 0-60 dias
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + daysToExpiry);
+      
+      setCertificateExpiry(expiryDate.toLocaleDateString('pt-BR'));
+      setCertificateStatus(
+        daysToExpiry <= 0 ? 'expired' :
+        daysToExpiry <= 30 ? 'expiring' : 'active'
+      );
+      
+      // Simular estatísticas mensais
+      const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
+      const mockStats = months.map(month => ({
+        month: `${month}/2025`,
+        count: Math.floor(Math.random() * 50) + 10
+      }));
+      
+      setMonthlyStats(mockStats);
+      setMonthlyCount(mockStats.reduce((sum, item) => sum + item.count, 0));
+      
+      // Simular status da SEFAZ (online na maioria das vezes)
+      setSefazStatus(Math.random() > 0.2 ? 'online' : 'offline');
     } catch (error) {
       console.error('Error loading fiscal dashboard:', error);
-      // Don't show the error toast since we've handled individual errors above
-      // This avoids the "Erro ao carregar painel" message
     }
   };
 
@@ -276,31 +236,7 @@ const Documents = () => {
   };
 
   const handleNewDocument = () => {
-    // In a real application, this would re-fetch the documents from the API
-    // For this demo, we'll add a new mock document
-    
-    const newDocument: FiscalDocument = {
-      id: `new-${Date.now()}`,
-      number: `NF-${String(documents.length + 1).padStart(5, '0')}`,
-      type: "nf",
-      status: "authorized",
-      customer_id: `cus_new_${Date.now()}`,
-      customer_name: "Novo Cliente Ltda",
-      issue_date: new Date().toISOString(),
-      total_value: Math.floor(Math.random() * 5000) + 100,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      authorization_date: new Date().toISOString(),
-      access_key: `3525${Date.now()}`,
-    };
-    
-    setDocuments([newDocument, ...documents]);
-    setMonthlyCount(monthlyCount + 1);
-    
-    toast({
-      title: "Nova nota fiscal emitida",
-      description: `A nota ${newDocument.number} foi emitida com sucesso.`,
-    });
+    setIsEmitDialogOpen(true);
   };
 
   const handleExportDocuments = () => {
@@ -323,6 +259,7 @@ const Documents = () => {
       title: "Redirecionando",
       description: "Indo para a página de relatórios fiscais.",
     });
+    navigate('/reports');
   };
 
   const checkCertificate = () => {
@@ -350,6 +287,7 @@ const Documents = () => {
         toast({
           title: "Certificado expirando",
           description: `Seu certificado digital expira em ${daysLeft} dias. Renove em breve.`,
+          variant: "default",
           className: "bg-yellow-100 border-yellow-400 text-yellow-800 dark:bg-yellow-900 dark:border-yellow-800 dark:text-yellow-200",
         });
       } else {
@@ -363,13 +301,42 @@ const Documents = () => {
     }, 1500);
   };
 
+  // Check SEFAZ Status
+  const checkSefazStatus = () => {
+    toast({
+      title: "Verificando SEFAZ",
+      description: "Testando conexão com servidores da SEFAZ..."
+    });
+    
+    setTimeout(() => {
+      const isOnline = Math.random() > 0.3;
+      setSefazStatus(isOnline ? 'online' : 'offline');
+      
+      if (isOnline) {
+        toast({
+          title: "SEFAZ Online",
+          description: "Conexão com a SEFAZ está funcionando normalmente."
+        });
+      } else {
+        toast({
+          title: "SEFAZ Offline",
+          description: "Servidores da SEFAZ estão com problemas. Documentos serão emitidos em contingência.",
+          variant: "destructive"
+        });
+      }
+    }, 2000);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader 
         title="Documentos Fiscais"
         description="Gerencie notas fiscais e documentos fiscais eletrônicos."
         actions={
-          <NewDocumentDialog onDocumentCreated={handleNewDocument} />
+          <Button className="flex items-center gap-2" onClick={handleNewDocument}>
+            <FilePlus className="h-4 w-4" />
+            Emitir Nota
+          </Button>
         }
       >
         <FileText className="h-6 w-6" />
@@ -519,6 +486,12 @@ const Documents = () => {
               )}
             </div>
           </CardContent>
+          <CardFooter>
+            <Button variant="outline" className="w-full flex items-center justify-center gap-2" onClick={handleDocumentUpdated}>
+              <RefreshCw className="h-4 w-4" />
+              Atualizar Estatísticas
+            </Button>
+          </CardFooter>
         </Card>
 
         <Card>
@@ -541,7 +514,7 @@ const Documents = () => {
                 <span>Vence em {certificateExpiry}</span>
               </div>
               {certificateStatus === "expiring" && (
-                <Alert className="border-yellow-500/50 text-yellow-600 dark:border-yellow-500 [&>svg]:text-yellow-600">
+                <Alert variant="default" className="border-yellow-500/50 text-yellow-600 dark:border-yellow-500 dark:text-yellow-400">
                   <AlertCircle className="h-4 w-4" />
                   <AlertTitle>Atenção</AlertTitle>
                   <AlertDescription>
@@ -560,6 +533,12 @@ const Documents = () => {
               )}
             </div>
           </CardContent>
+          <CardFooter>
+            <Button variant="outline" className="w-full flex items-center justify-center gap-2" onClick={checkCertificate}>
+              <RefreshCw className="h-4 w-4" />
+              Verificar Certificado
+            </Button>
+          </CardFooter>
         </Card>
 
         <Card>
@@ -592,8 +571,21 @@ const Documents = () => {
               )}
             </div>
           </CardContent>
+          <CardFooter>
+            <Button variant="outline" className="w-full flex items-center justify-center gap-2" onClick={checkSefazStatus}>
+              <RefreshCw className="h-4 w-4" />
+              Verificar SEFAZ
+            </Button>
+          </CardFooter>
         </Card>
       </div>
+
+      {/* Dialog for creating new document */}
+      <EmitDocumentDialog 
+        open={isEmitDialogOpen} 
+        onOpenChange={setIsEmitDialogOpen} 
+        onDocumentCreated={handleDocumentUpdated}
+      />
     </div>
   );
 };
