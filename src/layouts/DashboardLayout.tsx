@@ -4,10 +4,10 @@ import { Outlet } from 'react-router-dom';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import BottomNav from '@/components/BottomNav';
-import { useMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export default function DashboardLayout() {
-  const isMobile = useMobile();
+  const isMobile = useIsMobile();
   
   return (
     <div className="min-h-screen flex flex-col">
