@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { FileText, FilePlus, Search, Calendar, Download, RefreshCw, X, Eye, Filter, ArrowRight, AlertCircle } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -39,7 +38,6 @@ const Documents = () => {
   
   const navigate = useNavigate();
 
-  // Load mock documents initially
   const mockDocuments: FiscalDocument[] = [
     {
       id: "1",
@@ -99,7 +97,6 @@ const Documents = () => {
     },
   ];
 
-  // Carregar documentos fiscais
   const loadDocuments = async () => {
     setIsLoading(true);
     try {
@@ -113,34 +110,25 @@ const Documents = () => {
       if (data && data.length > 0) {
         setDocuments(data as FiscalDocument[]);
       } else {
-        // Use mock data if no data is returned from Supabase
         setDocuments(mockDocuments);
       }
     } catch (error) {
       console.error('Error loading documents:', error);
-      toast({
-        title: "Erro ao carregar documentos",
-        description: "Usando dados de demonstração.",
-        variant: "destructive",
-      });
-      // Use mock data on error
+      toast.error("Erro ao carregar documentos. Usando dados de demonstração.");
       setDocuments(mockDocuments);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Carregar dados ao montar o componente
   useEffect(() => {
     loadDocuments();
     loadFiscalDashboard();
   }, []);
 
-  // Carregar dados do painel fiscal
   const loadFiscalDashboard = async () => {
     try {
-      // Simular status do certificado digital
-      const daysToExpiry = Math.floor(Math.random() * 60); // 0-60 dias
+      const daysToExpiry = Math.floor(Math.random() * 60);
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + daysToExpiry);
       
@@ -150,7 +138,6 @@ const Documents = () => {
         daysToExpiry <= 30 ? 'expiring' : 'active'
       );
       
-      // Simular estatísticas mensais
       const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
       const mockStats = months.map(month => ({
         month: `${month}/2025`,
@@ -160,7 +147,6 @@ const Documents = () => {
       setMonthlyStats(mockStats);
       setMonthlyCount(mockStats.reduce((sum, item) => sum + item.count, 0));
       
-      // Simular status da SEFAZ (online na maioria das vezes)
       setSefazStatus(Math.random() > 0.2 ? 'online' : 'offline');
     } catch (error) {
       console.error('Error loading fiscal dashboard:', error);
@@ -221,17 +207,10 @@ const Documents = () => {
       await loadDocuments();
       await loadFiscalDashboard();
       
-      toast({
-        title: "Documentos atualizados",
-        description: "Lista de documentos atualizada com sucesso."
-      });
+      toast.success("Lista de documentos atualizada com sucesso.");
     } catch (error) {
       console.error('Erro ao atualizar documentos:', error);
-      toast({
-        variant: "destructive",
-        title: "Erro na atualização",
-        description: "Não foi possível atualizar a lista de documentos."
-      });
+      toast.error("Não foi possível atualizar a lista de documentos.");
     }
   };
 
@@ -240,89 +219,51 @@ const Documents = () => {
   };
 
   const handleExportDocuments = () => {
-    toast({
-      title: "Exportação iniciada",
-      description: "Os documentos estão sendo exportados para Excel.",
-    });
+    toast.success("Os documentos estão sendo exportados para Excel.");
     
-    // Simulate export completion
     setTimeout(() => {
-      toast({
-        title: "Exportação concluída",
-        description: "Os documentos foram exportados com sucesso.",
-      });
+      toast.success("Os documentos foram exportados com sucesso.");
     }, 1500);
   };
 
   const handleGenerateReports = () => {
-    toast({
-      title: "Redirecionando",
-      description: "Indo para a página de relatórios fiscais.",
-    });
+    toast.success("Indo para a página de relatórios fiscais.");
     navigate('/reports');
   };
 
   const checkCertificate = () => {
-    // Simulate checking digital certificate
-    toast({
-      title: "Verificando certificado",
-      description: "Validando status do certificado digital...",
-    });
+    toast.success("Validando status do certificado digital...");
     
-    // Simulate response
     setTimeout(() => {
       const daysLeft = Math.floor(Math.random() * 100);
       
       if (daysLeft < 15) {
         setCertificateStatus("expired");
         setCertificateExpiry("Expirado");
-        toast({
-          title: "Certificado expirado",
-          description: "Seu certificado digital está expirado. Renove imediatamente.",
-          variant: "destructive",
-        });
+        toast.error("Seu certificado digital está expirado. Renove imediatamente.");
       } else if (daysLeft < 30) {
         setCertificateStatus("expiring");
         setCertificateExpiry(`${daysLeft}/12/2025`);
-        toast({
-          title: "Certificado expirando",
-          description: `Seu certificado digital expira em ${daysLeft} dias. Renove em breve.`,
-          variant: "default",
-          className: "bg-yellow-100 border-yellow-400 text-yellow-800 dark:bg-yellow-900 dark:border-yellow-800 dark:text-yellow-200",
-        });
+        toast.warning(`Seu certificado digital expira em ${daysLeft} dias. Renove em breve.`);
       } else {
         setCertificateStatus("active");
         setCertificateExpiry("12/12/2025");
-        toast({
-          title: "Certificado válido",
-          description: "Seu certificado digital está válido e atualizado.",
-        });
+        toast.success("Seu certificado digital está válido e atualizado.");
       }
     }, 1500);
   };
 
-  // Check SEFAZ Status
   const checkSefazStatus = () => {
-    toast({
-      title: "Verificando SEFAZ",
-      description: "Testando conexão com servidores da SEFAZ..."
-    });
+    toast.success("Testando conexão com servidores da SEFAZ...");
     
     setTimeout(() => {
       const isOnline = Math.random() > 0.3;
       setSefazStatus(isOnline ? 'online' : 'offline');
       
       if (isOnline) {
-        toast({
-          title: "SEFAZ Online",
-          description: "Conexão com a SEFAZ está funcionando normalmente."
-        });
+        toast.success("Conexão com a SEFAZ está funcionando normalmente.");
       } else {
-        toast({
-          title: "SEFAZ Offline",
-          description: "Servidores da SEFAZ estão com problemas. Documentos serão emitidos em contingência.",
-          variant: "destructive"
-        });
+        toast.error("Servidores da SEFAZ estão com problemas. Documentos serão emitidos em contingência.");
       }
     }, 2000);
   };
@@ -580,7 +521,6 @@ const Documents = () => {
         </Card>
       </div>
 
-      {/* Dialog for creating new document */}
       <EmitDocumentDialog 
         open={isEmitDialogOpen} 
         onOpenChange={setIsEmitDialogOpen} 

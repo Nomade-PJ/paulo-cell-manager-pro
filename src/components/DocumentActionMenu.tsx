@@ -33,10 +33,7 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
   };
   
   const handleDownloadPdf = () => {
-    toast({
-      title: "Download iniciado",
-      description: "O PDF está sendo gerado e será baixado em instantes"
-    });
+    toast.success("Download iniciado. O PDF está sendo gerado e será baixado em instantes");
     
     setTimeout(() => {
       // In a real implementation, this would use a real PDF URL
@@ -56,10 +53,7 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
   };
   
   const handleSendEmail = () => {
-    toast({
-      title: "Enviando email",
-      description: `Enviando documento ${document.number} por email...`
-    });
+    toast.success("Enviando documento " + document.number + " por email...");
     
     setTimeout(() => {
       toast.success("Email enviado com sucesso!");
@@ -68,10 +62,7 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
   
   const handleReissue = async () => {
     try {
-      toast({
-        title: "Reemitindo documento",
-        description: "Aguarde enquanto processamos a reemissão..."
-      });
+      toast.success("Reemitindo documento. Aguarde enquanto processamos a reemissão...");
       
       // In a real implementation, this would call a backend API
       setTimeout(() => {
@@ -170,18 +161,9 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
       
       {/* Printer component (for thermal printing) */}
       {isPrinting && (
-        <ThermalPrinter
-          title={`Comprovante - ${document.number}`}
-          items={[
-            { label: "Cliente", value: document.customer_name },
-            { label: "Data", value: new Date(document.issue_date).toLocaleDateString("pt-BR") },
-            { label: "Valor Total", value: new Intl.NumberFormat("pt-BR", {
-              style: "currency",
-              currency: "BRL",
-            }).format(document.total_value) }
-          ]}
-          footer={`NFe - Chave de Acesso: ${document.access_key}`}
-        />
+        <ThermalPrinter document={document}>
+          Impressão de documento
+        </ThermalPrinter>
       )}
       
       {/* Cancel dialog */}
