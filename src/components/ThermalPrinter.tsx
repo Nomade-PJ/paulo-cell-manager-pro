@@ -86,7 +86,7 @@ export const ThermalPrinter = ({ document, children }: ThermalPrinterProps) => {
         <div class="divider"></div>
         
         <div class="info">
-          <span class="bold">Cliente:</span> ${document.customer_name}
+          <span class="bold">Cliente:</span> ${document.customer_name || "Cliente desconhecido"}
         </div>
         
         <div class="divider"></div>

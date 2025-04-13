@@ -13,3 +13,27 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true
   }
 });
+
+// Helper function to get the current user's organization ID
+export async function getCurrentUserOrganizationId(): Promise<string | null> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) return null;
+    
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('id', user.id)
+      .single();
+      
+    if (error || !profile || !profile.organization_id) {
+      return null;
+    }
+    
+    return profile.organization_id;
+  } catch (error) {
+    console.error("Failed to get user organization:", error);
+    return null;
+  }
+}

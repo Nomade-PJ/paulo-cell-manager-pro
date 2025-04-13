@@ -22,6 +22,7 @@ export type Database = {
           name: string
           neighborhood: string | null
           number: string | null
+          organization_id: string | null
           phone: string | null
           state: string | null
           street: string | null
@@ -39,6 +40,7 @@ export type Database = {
           name: string
           neighborhood?: string | null
           number?: string | null
+          organization_id?: string | null
           phone?: string | null
           state?: string | null
           street?: string | null
@@ -56,12 +58,21 @@ export type Database = {
           name?: string
           neighborhood?: string | null
           number?: string | null
+          organization_id?: string | null
           phone?: string | null
           state?: string | null
           street?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "customers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       devices: {
         Row: {
@@ -75,6 +86,7 @@ export type Database = {
           imei: string | null
           model: string
           observations: string | null
+          organization_id: string | null
           password: string | null
           password_type: string
           serial_number: string | null
@@ -91,6 +103,7 @@ export type Database = {
           imei?: string | null
           model: string
           observations?: string | null
+          organization_id?: string | null
           password?: string | null
           password_type: string
           serial_number?: string | null
@@ -107,6 +120,7 @@ export type Database = {
           imei?: string | null
           model?: string
           observations?: string | null
+          organization_id?: string | null
           password?: string | null
           password_type?: string
           serial_number?: string | null
@@ -118,6 +132,85 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_documents: {
+        Row: {
+          access_key: string | null
+          authorization_date: string | null
+          cancelation_date: string | null
+          created_at: string | null
+          customer_id: string | null
+          customer_name: string
+          id: string
+          issue_date: string
+          number: string
+          organization_id: string | null
+          pdf_url: string | null
+          qr_code: string | null
+          status: string
+          total_value: number
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          access_key?: string | null
+          authorization_date?: string | null
+          cancelation_date?: string | null
+          created_at?: string | null
+          customer_id?: string | null
+          customer_name: string
+          id?: string
+          issue_date: string
+          number: string
+          organization_id?: string | null
+          pdf_url?: string | null
+          qr_code?: string | null
+          status: string
+          total_value: number
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          access_key?: string | null
+          authorization_date?: string | null
+          cancelation_date?: string | null
+          created_at?: string | null
+          customer_id?: string | null
+          customer_name?: string
+          id?: string
+          issue_date?: string
+          number?: string
+          organization_id?: string | null
+          pdf_url?: string | null
+          qr_code?: string | null
+          status?: string
+          total_value?: number
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_documents_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -132,6 +225,7 @@ export type Database = {
           id: string
           minimum_stock: number
           name: string
+          organization_id: string | null
           quantity: number
           selling_price: number
           sku: string
@@ -146,6 +240,7 @@ export type Database = {
           id?: string
           minimum_stock?: number
           name: string
+          organization_id?: string | null
           quantity?: number
           selling_price: number
           sku: string
@@ -160,12 +255,21 @@ export type Database = {
           id?: string
           minimum_stock?: number
           name?: string
+          organization_id?: string | null
           quantity?: number
           selling_price?: number
           sku?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "inventory_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notifications: {
         Row: {
@@ -203,6 +307,27 @@ export type Database = {
         }
         Relationships: []
       }
+      organizations: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -210,6 +335,7 @@ export type Database = {
           email: string | null
           id: string
           name: string | null
+          organization_id: string | null
           role: string | null
           updated_at: string
         }
@@ -219,6 +345,7 @@ export type Database = {
           email?: string | null
           id: string
           name?: string | null
+          organization_id?: string | null
           role?: string | null
           updated_at?: string
         }
@@ -228,10 +355,19 @@ export type Database = {
           email?: string | null
           id?: string
           name?: string | null
+          organization_id?: string | null
           role?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       services: {
         Row: {
@@ -241,6 +377,7 @@ export type Database = {
           estimated_completion_date: string | null
           id: string
           observations: string | null
+          organization_id: string | null
           other_service_description: string | null
           price: number
           priority: string | null
@@ -258,6 +395,7 @@ export type Database = {
           estimated_completion_date?: string | null
           id?: string
           observations?: string | null
+          organization_id?: string | null
           other_service_description?: string | null
           price: number
           priority?: string | null
@@ -275,6 +413,7 @@ export type Database = {
           estimated_completion_date?: string | null
           id?: string
           observations?: string | null
+          organization_id?: string | null
           other_service_description?: string | null
           price?: number
           priority?: string | null
@@ -298,6 +437,13 @@ export type Database = {
             columns: ["device_id"]
             isOneToOne: false
             referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "services_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -346,6 +492,10 @@ export type Database = {
     }
     Functions: {
       generate_unique_sku: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_user_organization_id: {
         Args: Record<PropertyKey, never>
         Returns: string
       }
