@@ -338,6 +338,41 @@ Este documento contém um registro consolidado de todas as atualizações realiz
   - Adicionada simulação de envio por email com geração de logs no banco de dados
   - Mantida a estrutura de notificações para interações com documentos
 
+## Atualização do Módulo de Documentos Fiscais (Maio 2025)
+
+### 20. Atualização da Localidade e Aprimoramento da Impressão Térmica
+- **Alteração:** Atualização da localidade do estabelecimento e melhorias no sistema de impressão térmica
+- **Arquivos afetados:** 
+  - `paulo-cell-manager-pro/src/components/DocumentPreview.tsx`
+  - `paulo-cell-manager-pro/src/components/NewDocumentDialog.tsx`
+- **Detalhes:** Implementação de ajustes na informação de localidade do estabelecimento e aprimoramentos na funcionalidade de impressão térmica.
+- **Solução Técnica:** 
+  - **Atualização da Localidade:**
+    - Alterada a localidade de "São Paulo - SP" para "Coelho Neto - MA" em todos os pontos da aplicação
+    - Modificada a informação em todos os modelos de documentos (visualização, impressão e e-mail)
+    - Mantida a consistência dos dados em todas as interfaces
+
+  - **Aperfeiçoamento da Impressão Térmica:**
+    - Corrigida a implementação do botão de impressão térmica no diálogo de pré-visualização
+    - Implementado sistema de referência via forwardRef para acesso direto às funções de impressão
+    - Adicionado useImperativeHandle para expor métodos de impressão ao componente pai
+    - Melhorada a formatação dos documentos impressos com espaçamento e alinhamento otimizados
+    - Implementado melhor tratamento de erros durante o processo de impressão com feedback visual via toast
+
+  - **Estrutura de Componentes Avançada:**
+    - Implementado padrão de referência entre componentes para comunicação direta de métodos
+    - Corrigido o fluxo de dados para implementar a impressão imediata após emissão do documento
+    - Melhorado o tratamento tipado para garantir segurança entre as interações de componentes
+    - Adicionado suporte para detectar e utilizar o método de impressão mais apropriado conforme disponibilidade
+
+  - **Experiência de Usuário Aprimorada:**
+    - Adicionado delay apropriado para garantir carregamento completo antes da impressão
+    - Implementado feedback visual durante todo o processo de impressão
+    - Adicionada detecção de conclusão de impressão para fechamento automático da janela
+    - Incluída configuração específica para impressoras térmicas com CSS otimizado
+
+Estas atualizações aprimoram a precisão das informações do estabelecimento e tornam o processo de impressão de documentos mais robusto e confiável, garantindo que os documentos fiscais possam ser impressos corretamente em impressoras térmicas.
+
 ## Resumo dos Benefícios
 
 Estas atualizações garantem:

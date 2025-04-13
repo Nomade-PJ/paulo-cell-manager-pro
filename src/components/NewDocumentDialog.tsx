@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, forwardRef } from "react";
 import { 
   Dialog, 
   DialogContent, 
@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Select, 
   SelectContent, 
@@ -18,21 +19,53 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { FilePlus } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FilePlus, Eye, FileEdit } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabaseClient";
+import DocumentPreview from "./DocumentPreview";
 
 interface NewDocumentDialogProps {
   onDocumentCreated?: () => void;
 }
 
+// Tipo para o documento
+interface DocumentData {
+  id: string;
+  type: "nf" | "nfce" | "nfs";
+  number: string;
+  customerName: string;
+  value: number;
+  description?: string;
+  date: string;
+  status: string;
+}
+
+// Função auxiliar para obter o título do documento com base no tipo
+const getDocumentTitle = (type: string): string => {
+  switch (type) {
+    case "nf":
+      return "NOTA FISCAL ELETRÔNICA";
+    case "nfce":
+      return "NOTA FISCAL DE CONSUMIDOR ELETRÔNICA";
+    case "nfs":
+      return "NOTA FISCAL DE SERVIÇO ELETRÔNICA";
+    default:
+      return "DOCUMENTO FISCAL";
+  }
+};
+
 const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
   const [open, setOpen] = useState(false);
-  const [documentType, setDocumentType] = useState<string>("nf");
+  const [documentType, setDocumentType] = useState<"nf" | "nfce" | "nfs">("nf");
   const [customerId, setCustomerId] = useState<string>("");
   const [customerName, setCustomerName] = useState<string>("");
   const [totalValue, setTotalValue] = useState<string>("0");
+  const [description, setDescription] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("form");
+  const [document, setDocument] = useState<DocumentData | null>(null);
+  const documentPreviewRef = useRef<any>(null);
 
   const validateDocument = () => {
     if (!documentType || !customerName || !totalValue) {
@@ -68,7 +101,7 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
     
     // Gerar número de série baseado no tipo de documento
     const seriesNumber = type === 'nf' ? '001' : 
-                         type === 'nfce' ? '002' : '003';
+                          type === 'nfce' ? '002' : '003';
     
     // Gerar número de documento
     const documentNumber = `${Math.floor(Math.random() * 100000).toString().padStart(6, '0')}`;
@@ -96,99 +129,112 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
     };
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setIsSubmitting(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-    try {
-      // Validar dados do documento
-      validateDocument();
-      
+    if (!documentType || !customerName || !totalValue) {
       toast({
-        title: "Processando",
-        description: "Emitindo documento fiscal...",
+        title: "Campos obrigatórios",
+        description: "Preencha todos os campos obrigatórios.",
+        variant: "destructive",
       });
+      return;
+    }
 
+    setIsSubmitting(true);
+
+    try {
       // Gerar dados fiscais fictícios
       const fiscalData = generateFiscalData(documentType);
-
-      // Criar documento fiscal no Supabase
-      const { data: document, error: createError } = await supabase
-        .from('fiscal_documents')
-        .insert([
-          {
-            type: documentType,
-            customer_name: customerName,
-            total_value: parseFloat(totalValue),
-            status: 'authorized', // Já começa como autorizado, pois é fictício
-            issue_date: fiscalData.issue_date,
-            number: fiscalData.number,
-            series: fiscalData.series,
-            authorization_date: fiscalData.authorization_date,
-            access_key: fiscalData.access_key,
-            protocol_number: fiscalData.protocol_number
-          }
-        ])
-        .select()
-        .single();
-
-      if (createError) throw createError;
-
-      // Gerar PDF fictício (em um cenário real seria gerado pelo backend)
-      const pdfBlob = new Blob(['Documento fiscal fictício'], { type: 'application/pdf' });
-      const pdfFileName = `${documentType.toUpperCase()}_${fiscalData.number.replace(/\D/g, '')}.pdf`;
       
-      // Armazenar o PDF fictício no Storage do Supabase
-      const { data: pdfData, error: pdfError } = await supabase.storage
-        .from('fiscal_documents')
-        .upload(`pdfs/${document.id}/${pdfFileName}`, pdfBlob);
+      // Criar objeto de documento
+      const docData: DocumentData = {
+        id: crypto.randomUUID(),
+        type: documentType,
+        number: fiscalData.number,
+        customerName,
+        value: parseFloat(totalValue),
+        description,
+        date: new Date().toISOString(),
+        status: "Emitido"
+      };
       
-      if (pdfError) {
-        console.error("Erro ao armazenar PDF:", pdfError);
-        // Não impede o fluxo, apenas loga o erro
-      }
-
-      // Atualizar o documento com o caminho do PDF, se foi armazenado com sucesso
-      if (pdfData?.path) {
-        const { error: updateError } = await supabase
-          .from('fiscal_documents')
-          .update({
-            pdf_url: pdfData.path
-          })
-          .eq('id', document.id);
+      // Inserir no Supabase
+      const { error } = await supabase
+        .from('documents')
+        .insert([docData]);
         
-        if (updateError) {
-          console.error("Erro ao atualizar URL do PDF:", updateError);
-        }
+      if (error) {
+        throw new Error(error.message);
       }
-
-      const documentTypeName = documentType === "nf" ? "Nota Fiscal" : 
-                              documentType === "nfce" ? "NFCe" : "Nota de Serviço";
+      
+      // Atualizar o documento atual com o ID gerado
+      setDocument(docData);
       
       toast({
-        title: "Documento Emitido",
-        description: `${documentTypeName} emitida com sucesso. Número: ${fiscalData.number}`,
+        title: "Documento emitido",
+        description: `${getDocumentTitle(documentType)} emitido com sucesso.`,
       });
       
-      setOpen(false);
-      if (onDocumentCreated) onDocumentCreated();
+      // Abrir visualização
+      setActiveTab("preview");
       
-      // Reset form
-      setDocumentType("nf");
-      setCustomerId("");
-      setCustomerName("");
-      setTotalValue("0");
-
-    } catch (error: any) {
-      console.error("Error creating document:", error);
+      // Configurar para impressão após sucesso
+      setTimeout(() => {
+        if (documentPreviewRef.current) {
+          // Chamar o método handlePrint diretamente no componente
+          const printMethod = documentPreviewRef.current.handlePrint;
+          if (typeof printMethod === 'function') {
+            printMethod();
+          }
+        }
+      }, 500);
+      
+      // Chamar callback se fornecido
+      if (onDocumentCreated) {
+        setTimeout(() => {
+          onDocumentCreated();
+        }, 600);
+      }
+    } catch (error) {
+      console.error('Erro ao emitir documento:', error);
       toast({
-        title: "Erro na Emissão",
-        description: error.message || "Não foi possível emitir o documento. Tente novamente.",
+        title: "Erro ao emitir",
+        description: "Não foi possível emitir o documento. Tente novamente.",
         variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Função para simular impressão
+  const handlePrint = () => {
+    toast({
+      title: "Impressão solicitada",
+      description: "A impressão seria enviada para uma impressora térmica.",
+    });
+  };
+
+  // Função para simular compartilhamento
+  const handleShare = () => {
+    toast({
+      title: "Compartilhamento",
+      description: "Funcionalidade fictícia de compartilhamento de documento.",
+    });
+  };
+
+  // Função para simular envio por email
+  const handleEmail = () => {
+    toast({
+      title: "Envio por Email",
+      description: "Funcionalidade fictícia de envio por email.",
+    });
+  };
+
+  // Função para alternar para a aba de pré-visualização
+  const handlePreview = () => {
+    setActiveTab("preview");
   };
 
   return (
@@ -199,7 +245,7 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
           Emitir Nota
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[800px]">
         <DialogHeader>
           <DialogTitle>Emitir Documento Fiscal</DialogTitle>
           <DialogDescription>
@@ -207,69 +253,142 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
           </DialogDescription>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-4 py-4">
-          <div className="grid grid-cols-1 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="documentType">Tipo de Documento</Label>
-              <Select
-                value={documentType}
-                onValueChange={setDocumentType}
-              >
-                <SelectTrigger id="documentType">
-                  <SelectValue placeholder="Selecione o tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="nf">Nota Fiscal (NF-e)</SelectItem>
-                  <SelectItem value="nfce">Nota Fiscal Consumidor (NFC-e)</SelectItem>
-                  <SelectItem value="nfs">Nota Fiscal de Serviço (NFS-e)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="customer">Cliente</Label>
-              <Input 
-                id="customer"
-                placeholder="Nome do cliente"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="value">Valor Total (R$)</Label>
-              <Input 
-                id="value"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0,00"
-                value={totalValue}
-                onChange={(e) => setTotalValue(e.target.value)}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="details" className="text-sm text-muted-foreground">
-                Detalhes adicionais
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                {documentType === "nf" && "Nota fiscal eletrônica para empresas e pessoas físicas."}
-                {documentType === "nfce" && "Nota fiscal de consumidor para vendas no varejo."}
-                {documentType === "nfs" && "Nota fiscal para prestação de serviços."}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                <em>Nota: Documentos emitidos são fictícios e apenas para demonstração.</em>
-              </p>
-            </div>
-          </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-2">
+          <TabsList className="grid grid-cols-2 w-[400px] mx-auto">
+            <TabsTrigger value="form" className="flex items-center gap-2">
+              <FileEdit className="h-4 w-4" />
+              Formulário
+            </TabsTrigger>
+            <TabsTrigger value="preview" className="flex items-center gap-2">
+              <Eye className="h-4 w-4" />
+              Pré-visualizar
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="form" className="mt-4">
+            <form onSubmit={handleSubmit} className="space-y-4 py-4">
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="documentType">Tipo de Documento</Label>
+                  <Select
+                    value={documentType}
+                    onValueChange={(val) => setDocumentType(val as "nf" | "nfce" | "nfs")}
+                  >
+                    <SelectTrigger id="documentType">
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="nf">Nota Fiscal (NF-e)</SelectItem>
+                      <SelectItem value="nfce">Nota Fiscal Consumidor (NFC-e)</SelectItem>
+                      <SelectItem value="nfs">Nota Fiscal de Serviço (NFS-e)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="customer">Cliente</Label>
+                  <Input 
+                    id="customer"
+                    placeholder="Nome do cliente"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="value">Valor Total (R$)</Label>
+                  <Input 
+                    id="value"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0,00"
+                    value={totalValue}
+                    onChange={(e) => setTotalValue(e.target.value)}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="description">Descrição do {documentType === "nfs" ? "Serviço" : "Produto"}</Label>
+                  <Textarea 
+                    id="description"
+                    placeholder={`Descreva o ${documentType === "nfs" ? "serviço" : "produto"} fornecido`}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="details" className="text-sm text-muted-foreground">
+                    Detalhes adicionais
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    {documentType === "nf" && "Nota fiscal eletrônica para empresas e pessoas físicas."}
+                    {documentType === "nfce" && "Nota fiscal de consumidor para vendas no varejo."}
+                    {documentType === "nfs" && "Nota fiscal para prestação de serviços."}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    <em>Nota: Documentos emitidos são fictícios e apenas para demonstração.</em>
+                  </p>
+                </div>
+              </div>
+              
+              <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={handlePreview}
+                  className="flex items-center gap-2 order-1 sm:order-none"
+                >
+                  <Eye className="h-4 w-4" />
+                  Pré-visualizar
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Emitindo..." : "Emitir Documento"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </TabsContent>
           
-          <DialogFooter>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Emitindo..." : "Emitir Documento"}
-            </Button>
-          </DialogFooter>
-        </form>
+          <TabsContent value="preview" className="mt-4 flex flex-col items-center">
+            <p className="text-sm text-muted-foreground mb-4">
+              Pré-visualização do documento fiscal. Confira se todos os dados estão corretos antes de emitir.
+            </p>
+            
+            <DocumentPreview 
+              ref={documentPreviewRef}
+              type={document?.type || documentType}
+              number={document?.number || `${documentType.toUpperCase()}-001-${Math.floor(Math.random() * 100000).toString().padStart(6, '0')}`}
+              customerName={document?.customerName || customerName || "Cliente não especificado"}
+              value={document?.value || parseFloat(totalValue) || 0}
+              date={document?.date ? new Date(document.date) : new Date()}
+              description={document?.description || description}
+              onPrint={handlePrint}
+              onShare={handleShare}
+              onEmail={handleEmail}
+            />
+            
+            <div className="flex justify-end w-full mt-6">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setActiveTab("form")}
+                className="mr-2"
+              >
+                Voltar ao formulário
+              </Button>
+              <Button 
+                type="button" 
+                onClick={handleSubmit} 
+                disabled={isSubmitting}
+                className="bg-primary text-white hover:bg-primary/90"
+              >
+                {isSubmitting ? "Emitindo..." : "Emitir Documento"}
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

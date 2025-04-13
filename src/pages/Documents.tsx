@@ -104,13 +104,27 @@ const Documents = () => {
 
       if (error) throw error;
 
-      setDocuments(data || []);
+      // Se temos dados, usamos eles, senão usamos os dados mockados
+      if (data && data.length > 0) {
+        setDocuments(data);
+      } else {
+        // Usar dados mockados apenas quando não há documentos no Supabase
+        setDocuments(mockDocuments);
+        
+        toast({
+          title: "Modo Demonstração",
+          description: "Carregando exemplos de documentos fiscais.",
+        });
+      }
     } catch (error) {
       console.error('Error loading documents:', error);
+      
+      // Fallback para documentos mockados em caso de erro
+      setDocuments(mockDocuments);
+      
       toast({
-        title: "Erro ao carregar documentos",
-        description: "Não foi possível carregar os documentos fiscais.",
-        variant: "destructive",
+        title: "Modo Demonstração",
+        description: "Carregando exemplos de documentos fiscais.",
       });
     } finally {
       setIsLoading(false);
@@ -275,32 +289,29 @@ const Documents = () => {
     }
   };
 
-  const handleNewDocument = () => {
-    // In a real application, this would re-fetch the documents from the API
-    // For this demo, we'll add a new mock document
-    
-    const newDocument: FiscalDocument = {
-      id: `new-${Date.now()}`,
-      number: `NF-${String(documents.length + 1).padStart(5, '0')}`,
-      type: "nf",
-      status: "authorized",
-      customer_id: `cus_new_${Date.now()}`,
-      customer_name: "Novo Cliente Ltda",
-      issue_date: new Date().toISOString(),
-      total_value: Math.floor(Math.random() * 5000) + 100,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      authorization_date: new Date().toISOString(),
-      access_key: `3525${Date.now()}`,
-    };
-    
-    setDocuments([newDocument, ...documents]);
-    setMonthlyCount(monthlyCount + 1);
-    
-    toast({
-      title: "Nova nota fiscal emitida",
-      description: `A nota ${newDocument.number} foi emitida com sucesso.`,
-    });
+  const handleNewDocument = async () => {
+    try {
+      setIsLoading(true);
+      // Recarregar os documentos do Supabase
+      await loadDocuments();
+      
+      // Recarregar o dashboard fiscal para mostrar estatísticas atualizadas
+      await loadFiscalDashboard();
+      
+      toast({
+        title: "Documentos Atualizados",
+        description: "Lista de documentos fiscais atualizada com sucesso.",
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar documentos:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar a lista de documentos.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleExportDocuments = () => {
@@ -376,72 +387,77 @@ const Documents = () => {
       </PageHeader>
       
       <Tabs defaultValue="all" onValueChange={setCurrentTab}>
-        <TabsList className="grid grid-cols-4 w-full md:w-auto mb-4">
+        <TabsList className="grid grid-cols-5 w-full mb-4">
           <TabsTrigger value="all">Todos</TabsTrigger>
-          <TabsTrigger value="nf">Notas Fiscais</TabsTrigger>
-          <TabsTrigger value="nfce">NFCe</TabsTrigger>
-          <TabsTrigger value="nfs">NFS</TabsTrigger>
+          <TabsTrigger value="nf">NF-e</TabsTrigger>
+          <TabsTrigger value="nfce">NFC-e</TabsTrigger>
+          <TabsTrigger value="nfs">NFS-e</TabsTrigger>
+          <TabsTrigger value="history">Histórico</TabsTrigger>
         </TabsList>
 
         <Card>
-          <CardHeader>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <CardTitle>Documentos Fiscais</CardTitle>
-                <CardDescription>Gerencie suas notas fiscais eletrônicas</CardDescription>
+          <CardHeader className="flex flex-col sm:flex-row gap-4 items-start justify-between">
+            <div>
+              <CardTitle>Documentos Fiscais</CardTitle>
+              <CardDescription>
+                {currentTab === "all" && "Todos os tipos de documentos fiscais"}
+                {currentTab === "nf" && "Notas Fiscais Eletrônicas (NF-e)"}
+                {currentTab === "nfce" && "Notas Fiscais de Consumidor Eletrônicas (NFC-e)"}
+                {currentTab === "nfs" && "Notas Fiscais de Serviço Eletrônicas (NFS-e)"}
+                {currentTab === "history" && "Histórico de documentos emitidos"}
+              </CardDescription>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center gap-2">
+              <div className="relative w-full sm:w-auto">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar documentos..."
+                  className="pl-8 w-full"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
-              <div className="flex flex-col sm:flex-row items-center gap-2">
-                <div className="relative w-full sm:w-auto">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar documentos..."
-                    className="pl-8 w-full"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="authorized">Autorizada</SelectItem>
-                    <SelectItem value="pending">Pendente</SelectItem>
-                    <SelectItem value="canceled">Cancelada</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full sm:w-auto">
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {dateFilter ? format(dateFilter, "dd/MM/yyyy") : "Data"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="end">
-                    <CalendarComponent
-                      mode="single"
-                      selected={dateFilter}
-                      onSelect={setDateFilter}
-                      locale={ptBR}
-                    />
-                  </PopoverContent>
-                </Popover>
-                {(searchTerm || statusFilter !== "all" || dateFilter) && (
-                  <Button 
-                    variant="ghost" 
-                    onClick={() => {
-                      setSearchTerm("");
-                      setStatusFilter("all");
-                      setDateFilter(undefined);
-                    }}
-                  >
-                    Limpar
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="authorized">Autorizada</SelectItem>
+                  <SelectItem value="pending">Pendente</SelectItem>
+                  <SelectItem value="canceled">Cancelada</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full sm:w-auto flex items-center justify-between gap-2">
+                    <Calendar className="h-4 w-4" />
+                    <span>{dateFilter ? format(dateFilter, "dd/MM/yyyy") : "Filtrar por data"}</span>
+                    {dateFilter && (
+                      <X
+                        className="h-4 w-4 opacity-70 hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDateFilter(undefined);
+                        }}
+                      />
+                    )}
                   </Button>
-                )}
-              </div>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <CalendarComponent
+                    mode="single"
+                    selected={dateFilter}
+                    onSelect={setDateFilter}
+                    initialFocus
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </CardHeader>
+          
           <CardContent>
             <TabsContent value="all" className="mt-0">
               <DocumentsTable 
@@ -454,7 +470,7 @@ const Documents = () => {
             </TabsContent>
             <TabsContent value="nf" className="mt-0">
               <DocumentsTable 
-                documents={filteredDocuments} 
+                documents={filteredDocuments.filter(doc => doc.type === "nf")} 
                 getStatusBadge={getStatusBadge} 
                 getDocumentTypeLabel={getDocumentTypeLabel}
                 formatCurrency={formatCurrency}
@@ -463,7 +479,7 @@ const Documents = () => {
             </TabsContent>
             <TabsContent value="nfce" className="mt-0">
               <DocumentsTable 
-                documents={filteredDocuments} 
+                documents={filteredDocuments.filter(doc => doc.type === "nfce")} 
                 getStatusBadge={getStatusBadge} 
                 getDocumentTypeLabel={getDocumentTypeLabel}
                 formatCurrency={formatCurrency}
@@ -472,7 +488,18 @@ const Documents = () => {
             </TabsContent>
             <TabsContent value="nfs" className="mt-0">
               <DocumentsTable 
-                documents={filteredDocuments} 
+                documents={filteredDocuments.filter(doc => doc.type === "nfs")} 
+                getStatusBadge={getStatusBadge} 
+                getDocumentTypeLabel={getDocumentTypeLabel}
+                formatCurrency={formatCurrency}
+                onDocumentUpdated={handleDocumentUpdated}
+              />
+            </TabsContent>
+            <TabsContent value="history" className="mt-0">
+              <DocumentsTable 
+                documents={filteredDocuments.sort((a, b) => 
+                  new Date(b.issue_date).getTime() - new Date(a.issue_date).getTime()
+                )} 
                 getStatusBadge={getStatusBadge} 
                 getDocumentTypeLabel={getDocumentTypeLabel}
                 formatCurrency={formatCurrency}
@@ -480,22 +507,62 @@ const Documents = () => {
               />
             </TabsContent>
           </CardContent>
-          <CardFooter className="flex justify-between">
+          
+          {isLoading && (
+            <div className="flex justify-center items-center py-8">
+              <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+              <span className="ml-2">Carregando documentos...</span>
+            </div>
+          )}
+          
+          {!isLoading && filteredDocuments.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <AlertCircle className="h-10 w-10 text-muted-foreground mb-2" />
+              <h3 className="text-lg font-medium">Nenhum documento encontrado</h3>
+              <p className="text-sm text-muted-foreground max-w-md mt-1 mb-4">
+                Não há documentos fiscais que correspondam aos filtros aplicados.
+              </p>
+              <Button variant="outline" onClick={() => {
+                setSearchTerm("");
+                setStatusFilter("all");
+                setDateFilter(undefined);
+                setCurrentTab("all");
+              }}>
+                Limpar filtros
+              </Button>
+            </div>
+          )}
+          
+          <CardFooter className="border-t bg-muted/40 p-3 flex justify-between">
             <div className="text-sm text-muted-foreground">
-              Exibindo {filteredDocuments.length} de {documents.length} documentos
+              {!isLoading && (
+                <span>Exibindo {filteredDocuments.length} documento(s)</span>
+              )}
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" className="flex items-center gap-2" onClick={handleExportDocuments}>
-                <Download className="h-4 w-4" />
+              <Button variant="outline" size="sm" className="text-xs" onClick={handleExportDocuments}>
+                <Download className="h-3.5 w-3.5 mr-1" />
                 Exportar
               </Button>
-              <Button className="flex items-center gap-2" onClick={handleGenerateReports}>
-                <ArrowRight className="h-4 w-4" />
+              <Button variant="outline" size="sm" className="text-xs" onClick={handleGenerateReports}>
+                <FileText className="h-3.5 w-3.5 mr-1" />
                 Relatórios
               </Button>
             </div>
           </CardFooter>
         </Card>
+        
+        <div className="mt-8">
+          <Button variant="link" className="p-0 h-auto text-primary">
+            <ArrowRight className="h-4 w-4 mr-1" />
+            Como emitir notas reais?
+          </Button>
+          <p className="text-xs text-muted-foreground mt-1">
+            As notas fiscais emitidas neste aplicativo são fictícias e servem apenas 
+            para demonstração. Para emitir notas reais, você precisará de certificado 
+            digital e cadastro na SEFAZ.
+          </p>
+        </div>
       </Tabs>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
