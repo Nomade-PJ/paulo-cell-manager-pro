@@ -2,7 +2,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { FiscalDocument } from "@/types";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 
 interface ThermalPrinterProps {
   document: FiscalDocument;
@@ -86,7 +86,7 @@ export const ThermalPrinter = ({ document, children }: ThermalPrinterProps) => {
         <div class="divider"></div>
         
         <div class="info">
-          <span class="bold">Cliente:</span> ${document.customer_name || "Cliente desconhecido"}
+          <span class="bold">Cliente:</span> ${document.customer_name}
         </div>
         
         <div class="divider"></div>
@@ -135,7 +135,10 @@ export const ThermalPrinter = ({ document, children }: ThermalPrinterProps) => {
           window.document.body.removeChild(printFrame);
         }, 1000);
         
-        toast.success("Impressão iniciada. O documento " + document.number + " está sendo impresso.");
+        toast({
+          title: "Impressão iniciada",
+          description: `O documento ${document.number} está sendo impresso.`,
+        });
       };
     }
   };
@@ -151,5 +154,3 @@ export const ThermalPrinter = ({ document, children }: ThermalPrinterProps) => {
     </Button>
   );
 };
-
-export default ThermalPrinter;
