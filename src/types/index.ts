@@ -1,4 +1,3 @@
-
 export interface FiscalDocument {
   id: string;
   number: string;
@@ -23,6 +22,7 @@ export interface FiscalDocument {
     total_price: number;
   }[];
   organization_id?: string;
+  createElement?: any;
 }
 
 export interface Customer {

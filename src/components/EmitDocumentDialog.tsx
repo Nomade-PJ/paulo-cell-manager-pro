@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Customer } from '@/types';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabaseClient';
 import { toast } from 'sonner';
 import { PlusCircle, Loader2 } from 'lucide-react';
 
@@ -57,17 +57,20 @@ const EmitDocumentDialog: React.FC<EmitDocumentDialogProps> = ({ open, onOpenCha
         
       if (error) throw error;
       
-      // Type casting to match Customer interface
-      const typedCustomers = (data || []).map(customer => ({
+      // Transform the data to match the Customer type
+      const formattedCustomers: Customer[] = (data || []).map(customer => ({
         id: customer.id,
         name: customer.name,
         document: customer.document,
         document_type: customer.document_type as "cpf" | "cnpj",
         email: customer.email || '',
-        phone: customer.phone || ''
+        phone: customer.phone || '',
+        created_at: customer.created_at,
+        updated_at: customer.updated_at,
+        organization_id: customer.organization_id
       }));
       
-      setCustomerOptions(typedCustomers);
+      setCustomerOptions(formattedCustomers);
     } catch (error) {
       console.error('Erro ao carregar clientes:', error);
       toast.error("Não foi possível carregar a lista de clientes.");
