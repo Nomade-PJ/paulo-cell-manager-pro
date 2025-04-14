@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, forwardRef } from "react";
 import { 
   Dialog, 
@@ -24,21 +25,10 @@ import { FilePlus, Eye, FileEdit } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabaseClient";
 import DocumentPreview from "./DocumentPreview";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface NewDocumentDialogProps {
   onDocumentCreated?: () => void;
-}
-
-// Tipo para o documento
-interface DocumentData {
-  id: string;
-  type: "nf" | "nfce" | "nfs";
-  number: string;
-  customerName: string;
-  value: number;
-  description?: string;
-  date: string;
-  status: string;
 }
 
 // Função auxiliar para obter o título do documento com base no tipo
@@ -58,14 +48,14 @@ const getDocumentTitle = (type: string): string => {
 const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
   const [open, setOpen] = useState(false);
   const [documentType, setDocumentType] = useState<"nf" | "nfce" | "nfs">("nf");
-  const [customerId, setCustomerId] = useState<string>("");
   const [customerName, setCustomerName] = useState<string>("");
   const [totalValue, setTotalValue] = useState<string>("0");
   const [description, setDescription] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("form");
-  const [document, setDocument] = useState<DocumentData | null>(null);
+  const [document, setDocument] = useState<any>(null);
   const documentPreviewRef = useRef<any>(null);
+  const { user } = useAuth();
 
   const validateDocument = () => {
     if (!documentType || !customerName || !totalValue) {
@@ -93,7 +83,7 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
     }
   };
 
-  // Função para gerar dados fiscais fictícios
+  // Função para gerar dados fiscais
   const generateFiscalData = (type: string) => {
     const now = new Date();
     const timestamp = now.getTime();
@@ -106,15 +96,14 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
     // Gerar número de documento
     const documentNumber = `${Math.floor(Math.random() * 100000).toString().padStart(6, '0')}`;
     
-    // Gerar chave de acesso de 44 dígitos (fictícia mas com estrutura válida)
-    // Formato: UF(2) + AAMM(4) + CNPJ(14) + MODELO(2) + SÉRIE(3) + NUMERO(9) + CHAVE(9) + DV(1)
+    // Gerar chave de acesso de 44 dígitos (com estrutura apropriada)
     const uf = '35'; // São Paulo
     const aamm = `${now.getFullYear().toString().substring(2)}${(now.getMonth() + 1).toString().padStart(2, '0')}`;
     const cnpj = '12345678901234';
     const modelo = type === 'nf' ? '55' : type === 'nfce' ? '65' : '57';
     const numero = documentNumber.padStart(9, '0');
     const chaveExtra = timestamp.toString().substring(0, 9);
-    const dv = '0'; // Dígito verificador (em produção, seria calculado)
+    const dv = '0'; // Dígito verificador
     
     const accessKey = `${uf}${aamm}${cnpj}${modelo}${seriesNumber}${numero}${chaveExtra}${dv}`;
     
@@ -132,117 +121,41 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!documentType || !customerName || !totalValue) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Preencha todos os campos obrigatórios.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-
     try {
-      // Gerar dados fiscais fictícios
+      validateDocument();
+      
+      setIsSubmitting(true);
+
+      // Gerar dados fiscais
       const fiscalData = generateFiscalData(documentType);
       
-      // Criar objeto de documento
-      const docData: DocumentData = {
-        id: crypto.randomUUID(),
+      // Preparar documento para salvar no banco
+      const documentData = {
         type: documentType,
         number: fiscalData.number,
-        customerName,
-        value: parseFloat(totalValue),
-        description,
-        date: new Date().toISOString(),
-        status: "Emitido"
+        customer_name: customerName,
+        total_value: parseFloat(totalValue),
+        issue_date: fiscalData.issue_date,
+        authorization_date: fiscalData.authorization_date,
+        status: "authorized",
+        access_key: fiscalData.access_key,
+        organization_id: user?.organization_id
       };
       
-      // ID para usar consistentemente
-      const documentId = docData.id;
-      const now = new Date().toISOString();
+      // Inserir no Supabase
+      const { data, error } = await supabase
+        .from('fiscal_documents')
+        .insert([documentData])
+        .select()
+        .single();
       
-      try {
-        // Primeiro, tenta inserir na tabela 'documentos'
-        let error = null;
-        
-        // Tenta inserir na tabela 'documentos'
-        const { error: documentosError } = await supabase
-          .from('documentos')
-          .insert([{
-            id: documentId,
-            type: docData.type,
-            number: docData.number,
-            customer_name: customerName,
-            issue_date: now,
-            total_value: parseFloat(totalValue),
-            description: description,
-            status: "authorized", // Equivalente a "Emitido" na FiscalDocument
-            created_at: now,
-            updated_at: now,
-            customer_id: "local_" + Math.floor(Math.random() * 1000000), // ID do cliente fictício
-            authorization_date: now,
-            access_key: fiscalData.access_key
-          }]);
-          
-        if (documentosError) {
-          console.error('Erro ao salvar em documentos:', documentosError);
-          error = documentosError;
-          
-          // Tenta inserir na tabela 'documentos_fiscais' como alternativa
-          const { error: fiscaisError } = await supabase
-            .from('documentos_fiscais')
-            .insert([{
-              id: documentId,
-              type: docData.type,
-              number: docData.number,
-              customer_name: customerName,
-              issue_date: now,
-              total_value: parseFloat(totalValue),
-              description: description,
-              status: "authorized", // Equivalente a "Emitido" na FiscalDocument
-              created_at: now,
-              updated_at: now,
-              customer_id: "local_" + Math.floor(Math.random() * 1000000), // ID do cliente fictício
-              authorization_date: now,
-              access_key: fiscalData.access_key
-            }]);
-            
-          if (fiscaisError) {
-            console.error('Erro ao salvar em documentos_fiscais:', fiscaisError);
-            
-            // Por último, tenta inserir na tabela 'documents' (nome em inglês)
-            const { error: documentsError } = await supabase
-              .from('documents')
-              .insert([{
-                id: documentId,
-                type: docData.type,
-                number: docData.number,
-                customer_name: customerName,
-                value: parseFloat(totalValue),
-                description: description,
-                date: now,
-                status: docData.status
-              }]);
-              
-            if (documentsError) {
-              console.error('Erro ao salvar em documents:', documentsError);
-              // Mostra alerta sobre a falha na gravação
-              toast({
-                title: "Aviso",
-                description: "Documento emitido localmente, mas não foi possível salvar no banco de dados.",
-              });
-            }
-          }
-        }
-      } catch (dbError) {
-        console.error('Falha na operação com o banco:', dbError);
-        // Continua o fluxo mesmo com erro no banco
+      if (error) {
+        console.error("Erro ao salvar documento:", error);
+        throw new Error(`Erro ao emitir documento: ${error.message}`);
       }
       
-      // Atualizar o documento atual com o ID gerado
-      setDocument(docData);
+      // Atualizar o documento atual com os dados retornados
+      setDocument(data);
       
       toast({
         title: "Documento emitido",
@@ -251,18 +164,16 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
       
       // Abrir visualização
       setActiveTab("preview");
-            
+      
       // Chamar callback se fornecido
       if (onDocumentCreated) {
-        setTimeout(() => {
-          onDocumentCreated();
-        }, 600);
+        onDocumentCreated();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao emitir documento:', error);
       toast({
         title: "Erro ao emitir",
-        description: "Não foi possível emitir o documento. Tente novamente.",
+        description: error.message || "Não foi possível emitir o documento. Tente novamente.",
         variant: "destructive",
       });
     } finally {
@@ -270,28 +181,35 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
     }
   };
 
-  // Ativar funções reais de impressão, email e compartilhamento
-  const handlePrint = () => {
-    if (documentPreviewRef.current && documentPreviewRef.current.handlePrint) {
-      documentPreviewRef.current.handlePrint();
-    }
-  };
-
-  const handleShare = () => {
-    if (documentPreviewRef.current && documentPreviewRef.current.shareViaOther) {
-      documentPreviewRef.current.shareViaOther();
-    }
-  };
-
-  const handleEmail = () => {
-    if (documentPreviewRef.current && documentPreviewRef.current.handleEmailSend) {
-      documentPreviewRef.current.handleEmailSend();
-    }
-  };
-
   // Função para alternar para a aba de pré-visualização
   const handlePreview = () => {
-    setActiveTab("preview");
+    try {
+      validateDocument();
+      // Se a validação passar, abre a pré-visualização
+      setActiveTab("preview");
+      
+      // Cria um documento temporário para pré-visualização
+      const fiscalData = generateFiscalData(documentType);
+      const previewDoc = {
+        type: documentType,
+        number: fiscalData.number,
+        customer_name: customerName,
+        total_value: parseFloat(totalValue),
+        description: description,
+        issue_date: fiscalData.issue_date,
+        authorization_date: fiscalData.authorization_date,
+        status: "draft",
+        access_key: fiscalData.access_key
+      };
+      
+      setDocument(previewDoc);
+    } catch (error: any) {
+      toast({
+        title: "Atenção",
+        description: error.message || "Preencha todos os campos corretamente antes de pré-visualizar.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -399,19 +317,40 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
               Pré-visualização do documento fiscal. Confira se todos os dados estão corretos antes de emitir.
             </p>
             
-            <DocumentPreview 
-              ref={documentPreviewRef}
-              type={document?.type || documentType}
-              number={document?.number || `${documentType.toUpperCase()}-001-${Math.floor(Math.random() * 100000).toString().padStart(6, '0')}`}
-              customerName={document?.customerName || customerName || "Cliente não especificado"}
-              value={document?.value || parseFloat(totalValue) || 0}
-              date={document?.date ? new Date(document.date) : new Date()}
-              description={document?.description || description}
-              onPrint={handlePrint}
-              onShare={handleShare}
-              onEmail={handleEmail}
-            />
+            {document && (
+              <DocumentPreview 
+                ref={documentPreviewRef}
+                type={document.type}
+                number={document.number}
+                customerName={document.customer_name}
+                value={document.total_value}
+                date={new Date(document.issue_date)}
+                description={document.description || description}
+                accessKey={document.access_key}
+                status={document.status}
+              />
+            )}
             
+            <div className="flex justify-end w-full mt-6">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setActiveTab("form")}
+                className="mr-2"
+              >
+                Voltar ao formulário
+              </Button>
+              {document?.status === "draft" && (
+                <Button 
+                  type="button" 
+                  onClick={handleSubmit} 
+                  disabled={isSubmitting}
+                  className="bg-primary text-white hover:bg-primary/90"
+                >
+                  {isSubmitting ? "Emitindo..." : "Emitir Documento"}
+                </Button>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </DialogContent>

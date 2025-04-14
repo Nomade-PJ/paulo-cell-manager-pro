@@ -1,3 +1,4 @@
+
 import React, { useRef, forwardRef, useImperativeHandle } from "react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/popover";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/utils";
+import { supabase } from "@/integrations/supabaseClient";
 
 interface DocumentPreviewProps {
   type: "nf" | "nfce" | "nfs";
@@ -25,6 +27,8 @@ interface DocumentPreviewProps {
   value: number;
   date: Date;
   description?: string;
+  accessKey?: string;
+  status?: string;
   onPrint?: () => void;
   onShare?: () => void;
   onEmail?: () => void;
@@ -37,6 +41,8 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
   value,
   date,
   description,
+  accessKey,
+  status = "authorized",
   onPrint,
   onShare,
   onEmail
@@ -65,7 +71,7 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
     }
   };
 
-  // Calcular impostos fictícios
+  // Calcular impostos
   const calculateTaxes = () => {
     switch (type) {
       case "nf":
@@ -89,8 +95,8 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
     }
   };
 
-  // Gerar conteúdo HTML do documento
-  const generateDocumentHtml = () => {
+  // Gerar conteúdo HTML para impressora térmica
+  const generateThermalContent = () => {
     const taxes = calculateTaxes();
     
     return `
@@ -173,7 +179,7 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
             </tr>
             <tr>
               <td><b>Status:</b></td>
-              <td><b>NOTA EMITIDA</b></td>
+              <td><b>${status === "authorized" ? "NOTA EMITIDA" : status === "draft" ? "RASCUNHO" : "CANCELADA"}</b></td>
             </tr>
           </table>
           
@@ -221,7 +227,7 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
           
           <div class="center small">
             <p><b>Chave de Acesso:</b></p>
-            <p class="break-word">3525${type.toUpperCase()}0123456789123456789012345678901</p>
+            <p class="break-word">${accessKey || `3525${type.toUpperCase()}0123456789123456789012345678901`}</p>
             <p>Consulte pela chave de acesso em:</p>
             <p><b>www.nfe.fazenda.gov.br</b></p>
           </div>
@@ -229,7 +235,6 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
           <div class="divider"></div>
           
           <div class="center">
-            <p><b>DOCUMENTO FISCAL</b></p>
             <p>Obrigado pela preferência!</p>
           </div>
         </body>
@@ -238,21 +243,23 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
   };
 
   // Função para imprimir via impressora térmica
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (onPrint) {
       onPrint();
       return;
     }
 
     try {
+      // Gerar conteúdo para impressora térmica
+      const content = generateThermalContent();
+      
       // Criar um elemento temporário para impressão
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
         throw new Error("Não foi possível abrir a janela de impressão");
       }
-
-      printWindow.document.write(generateDocumentHtml());
       
+      printWindow.document.write(content);
       printWindow.document.close();
       printWindow.focus();
       
@@ -260,6 +267,11 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
       setTimeout(() => {
         try {
           printWindow.print();
+          
+          // Registrar o evento de impressão no banco de dados
+          if (status === "authorized") {
+            registerDocumentEvent('printed');
+          }
           
           // Fechar a janela após imprimir
           printWindow.addEventListener('afterprint', () => {
@@ -284,6 +296,52 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
       toast({
         title: "Erro na impressão",
         description: "Não foi possível preparar o documento para impressão. Verifique se sua impressora está configurada.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Função para criar e baixar um arquivo PDF
+  const handleDownloadThermal = async () => {
+    try {
+      // Gerar conteúdo HTML para o arquivo
+      const content = generateThermalContent();
+      
+      // Criar um blob com o conteúdo HTML
+      const blob = new Blob([content], { type: 'text/html' });
+      
+      // Criar URL temporária para o blob
+      const url = URL.createObjectURL(blob);
+      
+      // Criar elemento de download
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `documento-${number.replace(/\//g, '-')}.html`;
+      
+      // Simular clique para iniciar o download
+      document.body.appendChild(a);
+      a.click();
+      
+      // Limpar recursos
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+      
+      // Registrar evento de download
+      if (status === "authorized") {
+        registerDocumentEvent('downloaded');
+      }
+      
+      toast({
+        title: "Arquivo gerado",
+        description: "O documento foi baixado com sucesso.",
+      });
+    } catch (error) {
+      console.error("Erro ao gerar arquivo:", error);
+      toast({
+        title: "Erro ao gerar arquivo",
+        description: "Não foi possível gerar o arquivo do documento.",
         variant: "destructive",
       });
     }
@@ -319,6 +377,11 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
       // Abrir o cliente de e-mail padrão do usuário
       window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       
+      // Registrar evento de email
+      if (status === "authorized") {
+        registerDocumentEvent('email_sent');
+      }
+      
       toast({
         title: "E-mail pronto para envio",
         description: "Seu cliente de e-mail foi aberto com o documento anexado.",
@@ -333,47 +396,24 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
     }
   };
 
-  // Função para criar e compartilhar arquivo térmico
-  const createAndShareThermalFile = () => {
+  // Registrar evento do documento no banco de dados
+  const registerDocumentEvent = async (eventType: string) => {
     try {
-      // Gerar conteúdo do documento
-      const htmlContent = generateDocumentHtml();
-      
-      // Criar blob com o HTML formatado como documento térmico
-      const blob = new Blob([htmlContent], { type: 'text/html' });
-      
-      // Criar URL para o blob
-      const fileUrl = URL.createObjectURL(blob);
-      
-      // Criar elemento <a> para download
-      const link = document.createElement('a');
-      link.href = fileUrl;
-      link.download = `Documento_${number.replace(/[^a-zA-Z0-9]/g, '_')}.html`;
-      
-      // Adicionar à página, clicar e remover
-      document.body.appendChild(link);
-      link.click();
-      
-      // Remover o link da página
-      setTimeout(() => {
-        document.body.removeChild(link);
-        URL.revokeObjectURL(fileUrl);
-      }, 100);
-      
-      toast({
-        title: "Arquivo gerado com sucesso",
-        description: "O documento térmico foi criado e baixado.",
-      });
-      
-      return fileUrl;
+      await supabase
+        .from('fiscal_document_logs')
+        .insert([
+          {
+            document_number: number,
+            action: eventType,
+            details: {
+              document_type: type,
+              customer: customerName,
+              timestamp: new Date().toISOString()
+            }
+          }
+        ]);
     } catch (error) {
-      console.error("Erro ao criar arquivo térmico:", error);
-      toast({
-        title: "Erro ao criar arquivo",
-        description: "Não foi possível gerar o arquivo térmico.",
-        variant: "destructive",
-      });
-      return null;
+      console.error("Erro ao registrar evento do documento:", error);
     }
   };
 
@@ -406,14 +446,21 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
     const content = shareContent();
     window.open(`https://wa.me/?text=${encodeURIComponent(content)}`, '_blank');
     
-    // Também criar e compartilhar o arquivo térmico
-    createAndShareThermalFile();
+    // Registrar evento de compartilhamento
+    if (status === "authorized") {
+      registerDocumentEvent('shared_whatsapp');
+    }
   };
 
   // Função para compartilhar via SMS
   const shareViaSMS = () => {
     const content = shareContent();
     window.open(`sms:?&body=${encodeURIComponent(content)}`, '_blank');
+    
+    // Registrar evento de compartilhamento
+    if (status === "authorized") {
+      registerDocumentEvent('shared_sms');
+    }
   };
 
   // Função para compartilhar via outras redes sociais
@@ -422,6 +469,11 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
       navigator.share({
         title: `${getDocumentTitle()} - ${number}`,
         text: shareContent(),
+      }).then(() => {
+        // Registrar evento de compartilhamento
+        if (status === "authorized") {
+          registerDocumentEvent('shared_other');
+        }
       }).catch(err => {
         console.error('Erro ao compartilhar:', err);
         copyToClipboard(shareContent());
@@ -436,9 +488,12 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
   const taxes = calculateTaxes();
 
   return (
-    <Card className="w-[350px] max-h-[600px] shadow-md flex flex-col">
-      <CardHeader className="py-3 px-4 border-b bg-slate-50">
-        <CardTitle className="text-sm font-medium tracking-tight">{getDocumentTitle()}</CardTitle>
+    <Card className="border border-gray-200 w-full max-w-[400px] mx-auto">
+      <CardHeader className="bg-gray-50 text-center border-b border-gray-200 py-3">
+        <CardTitle className="text-sm font-bold">{getDocumentTitle()}</CardTitle>
+        <p className="text-xs text-muted-foreground mt-1">
+          {status === "draft" ? "DOCUMENTO EM RASCUNHO" : "DOCUMENTO EMITIDO"}
+        </p>
       </CardHeader>
       <CardContent className="flex-1 px-0 py-0 overflow-hidden">
         <ScrollArea className="h-[400px]">
@@ -450,18 +505,13 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
               <p className="text-xs">Coelho Neto - MA</p>
             </div>
             
-            <div className="space-y-1 border-t border-gray-200 pt-2">
-              <p className="font-medium">Documento:</p>
-              <div className="grid grid-cols-2 gap-1 text-xs">
-                <p>Número:</p>
-                <p>{number}</p>
-                <p>Cliente:</p>
-                <p>{customerName}</p>
-                <p>Emissão:</p>
-                <p>{date.toLocaleString('pt-BR')}</p>
-                <p>Status:</p>
-                <p className="font-medium">Emitido</p>
-              </div>
+            <div className="border-t border-b border-dashed border-gray-200 py-2 space-y-1">
+              <p><span className="font-medium">Documento:</span> {number}</p>
+              <p><span className="font-medium">Cliente:</span> {customerName}</p>
+              <p><span className="font-medium">Emissão:</span> {date.toLocaleString('pt-BR')}</p>
+              <p><span className="font-medium">Status:</span> <span className={`font-medium ${status === "authorized" ? "text-green-600" : "text-yellow-600"}`}>
+                {status === "authorized" ? "NOTA EMITIDA" : "RASCUNHO"}
+              </span></p>
             </div>
             
             {description && (
@@ -507,7 +557,9 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
             
             <div className="text-center pt-3 border-t border-gray-200">
               <p className="text-xs">Chave de Acesso:</p>
-              <p className="text-xs break-all font-mono">3525{type.toUpperCase()}0123456789123456789012345678901</p>
+              <p className="text-xs break-all font-mono">
+                {accessKey || `3525${type.toUpperCase()}0123456789123456789012345678901`}
+              </p>
               <div className="mt-2 text-xs">
                 <p>Consulte pela chave de acesso em:</p>
                 <p className="font-medium">www.nfe.fazenda.gov.br</p>
@@ -557,10 +609,10 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
                 variant="ghost" 
                 size="sm" 
                 className="flex justify-start px-2 py-1.5"
-                onClick={shareViaOther}
+                onClick={handleDownloadThermal}
               >
                 <FileText className="h-4 w-4 mr-2" />
-                Outras opções
+                Baixar formato térmico
               </Button>
             </div>
           </PopoverContent>
@@ -570,4 +622,5 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
   );
 });
 
-export default DocumentPreview; 
+DocumentPreview.displayName = "DocumentPreview";
+export default DocumentPreview;

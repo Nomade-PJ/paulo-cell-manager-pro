@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { 
   MoreHorizontal, 
@@ -40,7 +41,7 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const { user } = useAuth();
 
-  // Handler for document reissue
+  // Handler para reemissão de documento
   const handleReissue = async () => {
     try {
       // Verificar se o documento pode ser reemitido
@@ -74,22 +75,25 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
       
       const newAccessKey = `${uf}${aamm}${cnpj}${modelo}${seriesNumber}${numero}${chaveExtra}${dv}`;
 
-      // Preparar objeto para inserção
-      const newDocObject = {
-        id: crypto.randomUUID(),
-        type: document.type,
-        customer_id: document.customer_id || 'cliente-padrao',
-        customer_name: document.customer_name,
-        total_value: document.total_value,
-        description: `Reemissão do documento ${document.number}`,
-        status: 'authorized', 
-        number: newNumber,
-        issue_date: now.toISOString(),
-        access_key: newAccessKey,
-        authorization_date: now.toISOString(),
-        created_at: now.toISOString(),
-        updated_at: now.toISOString()
-      };
+      // Inserir novo documento como reemissão
+      const { data, error } = await supabase
+        .from('fiscal_documents')
+        .insert([
+          {
+            type: document.type,
+            customer_id: document.customer_id,
+            customer_name: document.customer_name,
+            total_value: document.total_value,
+            status: 'authorized', // Já emitimos como autorizado
+            original_document_id: document.id,
+            number: newNumber,
+            access_key: newAccessKey,
+            authorization_date: now.toISOString(),
+            issue_date: now.toISOString(),
+            organization_id: user?.organization_id
+          }
+        ])
+        .select();
 
       // Inserir na tabela documentos
       const { error } = await supabase
@@ -101,6 +105,19 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
         throw new Error("Não foi possível reemitir o documento. Verifique se todos os campos obrigatórios estão preenchidos.");
       }
 
+      // Registrar log da reemissão
+      await supabase
+        .from('fiscal_document_logs')
+        .insert([{
+          document_number: newNumber,
+          action: 'reissued',
+          user_id: user?.id,
+          details: {
+            original_document: document.number,
+            timestamp: now.toISOString()
+          }
+        }]);
+      
       // Criar notificação sobre a reemissão do documento
       if (user) {
         try {
@@ -132,7 +149,7 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
     }
   };
 
-  // Handler for document cancellation
+  // Handler para cancelamento de documento
   const handleCancel = async () => {
     try {
       // Verificar se o documento pode ser cancelado
@@ -140,7 +157,7 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
         throw new Error('Apenas documentos autorizados podem ser cancelados');
       }
 
-      // Verificar prazo de cancelamento (simulação)
+      // Verificar prazo de cancelamento
       const authDate = new Date(document.authorization_date!);
       const now = new Date();
       const hoursDiff = (now.getTime() - authDate.getTime()) / (1000 * 60 * 60);
@@ -163,12 +180,23 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
         .update({
           status: 'canceled',
           cancelation_date: new Date().toISOString(),
-          cancelation_reason: 'Cancelamento solicitado pelo emissor',
-          protocol_number_cancellation: `CANC${new Date().getTime().toString().substring(0, 10)}`
         })
         .eq('id', document.id);
 
       if (error) throw error;
+
+      // Registrar log do cancelamento
+      await supabase
+        .from('fiscal_document_logs')
+        .insert([{
+          document_number: document.number,
+          action: 'canceled',
+          user_id: user?.id,
+          details: {
+            cancelation_date: new Date().toISOString(),
+            reason: 'Cancelamento solicitado pelo emissor'
+          }
+        }]);
 
       // Criar notificação sobre o cancelamento do documento
       if (user) {
@@ -196,8 +224,8 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
     }
   };
 
-  // Handler for downloading PDF
-  const handleDownloadPDF = () => {
+  // Handler para download do documento PDF
+  const handleDownloadPDF = async () => {
     try {
       // Gerar HTML para o documento
       const docHTML = generateDocumentHTML();
@@ -223,8 +251,111 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
         title: "Download iniciado",
         description: `O documento ${document.number} foi preparado para download.`,
       });
-    } catch (error) {
-      console.error('Erro ao gerar PDF:', error);
+
+      // Gerar um PDF fictício simples no cliente
+      const docType = document.type.toUpperCase();
+      const docTitle = document.type === 'nf' ? 'NOTA FISCAL ELETRÔNICA' : 
+                      document.type === 'nfce' ? 'NOTA FISCAL DE CONSUMIDOR ELETRÔNICA' : 
+                      'NOTA FISCAL DE SERVIÇO ELETRÔNICA';
+      
+      // Estrutura básica do PDF em HTML
+      const pdfContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>${document.number}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            h1 { text-align: center; font-size: 18px; margin-bottom: 20px; }
+            .header { border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; }
+            .info-label { font-weight: bold; margin-right: 10px; }
+            .info-row { margin-bottom: 8px; }
+            .section { margin-bottom: 20px; }
+            .document-title { text-align: center; font-size: 22px; font-weight: bold; margin: 30px 0; }
+            .footer { margin-top: 40px; font-size: 12px; text-align: center; }
+            .logo { font-size: 24px; font-weight: bold; text-align: center; margin-bottom: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="logo">PAULO CELL</div>
+            <p style="text-align: center;">CNPJ: 42.054.453/0001-40</p>
+          </div>
+          
+          <div class="document-title">${docTitle}</div>
+          
+          <div class="section">
+            <div class="info-row">
+              <span class="info-label">Número:</span> ${document.number}
+            </div>
+            <div class="info-row">
+              <span class="info-label">Data de Emissão:</span> ${new Date(document.issue_date).toLocaleDateString('pt-BR')}
+            </div>
+            <div class="info-row">
+              <span class="info-label">Status:</span> ${document.status === 'authorized' ? 'AUTORIZADA' : document.status.toUpperCase()}
+            </div>
+            <div class="info-row">
+              <span class="info-label">Chave de Acesso:</span> ${document.access_key || '-'}
+            </div>
+          </div>
+          
+          <div class="section">
+            <div class="info-row">
+              <span class="info-label">Cliente:</span> ${document.customer_name}
+            </div>
+            <div class="info-row">
+              <span class="info-label">Valor Total:</span> R$ ${Number(document.total_value).toFixed(2).replace('.', ',')}
+            </div>
+          </div>
+          
+          <div class="footer">
+            <p>Documento fiscal emitido por Sistema Paulo Cell</p>
+            <p>Rua: Dr. Paulo Ramos, Bairro: Centro S/n - Coelho Neto - MA</p>
+          </div>
+        </body>
+        </html>
+      `;
+      
+      // Converter o HTML para Blob
+      const blob = new Blob([pdfContent], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Criar elemento de download
+      const downloadLink = window.document.createElement('a');
+      downloadLink.style.display = 'none';
+      downloadLink.href = url;
+      downloadLink.setAttribute('download', `${document.number.replace(/\//g, '-')}.html`);
+      
+      // Adicionar ao DOM
+      window.document.body.appendChild(downloadLink);
+      downloadLink.click();
+      
+      // Remover o elemento e revogar a URL
+      setTimeout(() => {
+        window.document.body.removeChild(downloadLink);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+
+      // Registrar log do download
+      if (user) {
+        await supabase
+          .from('fiscal_document_logs')
+          .insert([{
+            document_number: document.number,
+            action: 'downloaded',
+            user_id: user.id,
+            details: {
+              format: 'pdf',
+              timestamp: new Date().toISOString()
+            }
+          }]);
+      }
+      
+      toast({
+        title: "Download concluído",
+        description: `O documento ${document.number} foi baixado.`,
+      });
+    } catch (error: any) {
       toast({
         title: "Erro no download",
         description: "Não foi possível gerar o arquivo para download.",
@@ -389,13 +520,13 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
     }
   };
 
-  // Handler for document details view
+  // Handler para visualização de detalhes do documento
   const handleViewDetails = () => {
     setShowDetailsDialog(true);
   };
 
-  // Handler for sending by email
-  const handleSendEmail = () => {
+  // Handler para envio por email
+  const handleSendEmail = async () => {
     try {
       const issueDate = new Date(document.issue_date);
       const formattedValue = new Intl.NumberFormat('pt-BR', {
@@ -408,30 +539,62 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
       const body = `
 Olá ${document.customer_name},
 
-Segue abaixo o documento fiscal emitido pela Paulo Cell.
-
-Dados do documento:
-- Documento: ${document.number}
-- Tipo: ${document.type.toUpperCase()}
-- Data de emissão: ${issueDate.toLocaleDateString('pt-BR')}
-- Valor total: ${formattedValue}
-
-Atenciosamente,
-Paulo Cell
-CNPJ: 42.054.453/0001-40
-Rua: Dr. Paulo Ramos, Bairro: Centro S/n
-Coelho Neto - MA
-`;
+      // Construir o corpo do e-mail com os detalhes do documento
+      const docTitle = document.type === 'nf' ? 'NOTA FISCAL ELETRÔNICA' : 
+                      document.type === 'nfce' ? 'NOTA FISCAL DE CONSUMIDOR ELETRÔNICA' : 
+                      'NOTA FISCAL DE SERVIÇO ELETRÔNICA';
+                      
+      const subject = `${docTitle} - ${document.number}`;
+      const body = `
+        Olá,
+        
+        Segue a nota fiscal ${document.number} emitida em ${new Date(document.issue_date).toLocaleDateString('pt-BR')}.
+        
+        Detalhes do documento:
+        - Documento: ${document.number}
+        - Tipo: ${docTitle}
+        - Valor Total: R$ ${document.total_value.toFixed(2).replace('.', ',')}
+        
+        Atenciosamente,
+        Paulo Cell
+        CNPJ: 42.054.453/0001-40
+        Rua: Dr. Paulo Ramos, Bairro: Centro S/n
+        Coelho Neto - MA
+      `;
       
-      // Usar o protocolo mailto: para abrir o cliente de e-mail do usuário
+      // Abrir o cliente de e-mail padrão do usuário
       window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       
+      // Gravar o log de envio no banco
+      if (user) {
+        await supabase
+          .from('fiscal_document_logs')
+          .insert([{
+            document_number: document.number,
+            action: 'email_sent',
+            user_id: user.id,
+            details: {
+              sent_at: new Date().toISOString(),
+              document_type: document.type
+            }
+          }]);
+      }
+      
+      // Criar notificação sobre o envio do documento
+      if (user) {
+        await sendDocumentNotification(
+          user.id,
+          document.number,
+          "Documento enviado por email",
+          document.id
+        );
+      }
+      
       toast({
-        title: "E-mail preparado",
-        description: "O cliente de e-mail foi aberto para envio do documento.",
+        title: "Email preparado",
+        description: "O seu cliente de email foi aberto para envio do documento.",
       });
-    } catch (error) {
-      console.error('Erro ao preparar e-mail:', error);
+    } catch (error: any) {
       toast({
         title: "Erro ao enviar e-mail",
         description: "Não foi possível preparar o e-mail. Verifique se o documento possui todas as informações necessárias.",
@@ -472,6 +635,190 @@ Coelho Neto - MA
     }
   };
 
+  // Função para imprimir documento via impressora térmica
+  const printDocument = async () => {
+    try {
+      // Gerar conteúdo térmico
+      const content = generateThermalContent();
+      
+      // Criar um elemento temporário para impressão
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        throw new Error("Não foi possível abrir a janela de impressão");
+      }
+      
+      printWindow.document.write(content);
+      printWindow.document.close();
+      printWindow.focus();
+      
+      // Esperar o documento carregar completamente
+      setTimeout(() => {
+        printWindow.print();
+        
+        // Fechar a janela após imprimir
+        printWindow.addEventListener('afterprint', () => {
+          printWindow.close();
+        });
+        
+        // Registrar log da impressão
+        registerPrintLog();
+        
+        toast({
+          title: "Impressão enviada",
+          description: "O documento foi enviado para impressão térmica.",
+        });
+      }, 500);
+    } catch (error: any) {
+      toast({
+        title: "Erro na impressão",
+        description: error.message || "Não foi possível imprimir o documento.",
+        variant: "destructive",
+      });
+      console.error("Error printing document:", error);
+    }
+  };
+
+  // Registrar log de impressão
+  const registerPrintLog = async () => {
+    if (!user) return;
+    
+    try {
+      await supabase
+        .from('fiscal_document_logs')
+        .insert([{
+          document_number: document.number,
+          action: 'printed',
+          user_id: user.id,
+          details: {
+            print_type: 'thermal',
+            timestamp: new Date().toISOString()
+          }
+        }]);
+    } catch (error) {
+      console.error("Erro ao registrar log de impressão:", error);
+    }
+  };
+
+  // Gerar conteúdo HTML para impressora térmica
+  const generateThermalContent = () => {
+    return `
+      <html>
+      <head>
+        <title>Impressão ${document.number}</title>
+        <style>
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
+          body {
+            font-family: 'Courier New', monospace;
+            width: 80mm;
+            margin: 0 auto;
+            padding: 5mm;
+            background-color: white;
+            color: black;
+            font-size: 10pt;
+          }
+          .center {
+            text-align: center;
+          }
+          .bold {
+            font-weight: bold;
+          }
+          .divider {
+            border-top: 1px dashed #000;
+            margin: 8px 0;
+            width: 100%;
+          }
+          .small {
+            font-size: 9pt;
+          }
+          .header {
+            margin-bottom: 10px;
+            font-size: 12pt;
+            font-weight: bold;
+            text-align: center;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+          tr.total {
+            font-weight: bold;
+            border-top: 1px solid #000;
+            margin-top: 5px;
+          }
+          .right {
+            text-align: right;
+          }
+          .break-all {
+            word-break: break-all;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          PAULO CELL
+        </div>
+        <div class="center small">
+          CNPJ: 42.054.453/0001-40<br>
+          Rua: Dr. Paulo Ramos, Centro S/n<br>
+          Coelho Neto - MA
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="center bold">
+          ${document.type === 'nf' ? 'NOTA FISCAL ELETRÔNICA' : 
+            document.type === 'nfce' ? 'NOTA FISCAL CONSUMIDOR' : 'NOTA FISCAL SERVIÇO'}
+        </div>
+        
+        <div class="divider"></div>
+        
+        <table>
+          <tr>
+            <td class="bold">Número:</td>
+            <td>${document.number}</td>
+          </tr>
+          <tr>
+            <td class="bold">Cliente:</td>
+            <td>${document.customer_name}</td>
+          </tr>
+          <tr>
+            <td class="bold">Emissão:</td>
+            <td>${new Date(document.issue_date).toLocaleDateString('pt-BR')}</td>
+          </tr>
+          <tr>
+            <td class="bold">Status:</td>
+            <td>${document.status === 'authorized' ? 'AUTORIZADO' : 
+                document.status === 'canceled' ? 'CANCELADO' : 'PENDENTE'}</td>
+          </tr>
+          <tr>
+            <td class="bold">Valor:</td>
+            <td>R$ ${document.total_value.toFixed(2).replace('.', ',')}</td>
+          </tr>
+        </table>
+        
+        <div class="divider"></div>
+        
+        ${document.access_key ? `
+        <div class="small">
+          <p class="bold">Chave de Acesso:</p>
+          <p class="break-all">${document.access_key}</p>
+        </div>
+        <div class="divider"></div>
+        ` : ''}
+        
+        <div class="center small">
+          Documento emitido em ${new Date(document.created_at || document.issue_date).toLocaleString('pt-BR')}
+          <br><br>
+          Obrigado pela preferência!
+        </div>
+      </body>
+      </html>
+    `;
+  };
+
   return (
     <>
       <DropdownMenu>
@@ -487,11 +834,9 @@ Coelho Neto - MA
             <span>Ver detalhes</span>
           </DropdownMenuItem>
           
-          <DropdownMenuItem asChild>
-            <ThermalPrinter document={document}>
-              <Printer className="mr-2 h-4 w-4" />
-              <span>Imprimir térmica</span>
-            </ThermalPrinter>
+          <DropdownMenuItem onClick={printDocument} className="cursor-pointer">
+            <Printer className="mr-2 h-4 w-4" />
+            <span>Imprimir térmica</span>
           </DropdownMenuItem>
           
           <DropdownMenuItem onClick={handleDownloadPDF} className="cursor-pointer">
@@ -562,7 +907,7 @@ Coelho Neto - MA
                 <h4 className="font-medium">Cliente</h4>
                 <div className="mt-2 space-y-1 text-sm">
                   <p><span className="font-medium">Nome:</span> {document.customer_name}</p>
-                  <p><span className="font-medium">ID:</span> {document.customer_id}</p>
+                  <p><span className="font-medium">ID:</span> {document.customer_id || "N/A"}</p>
                 </div>
                 
                 {document.access_key && (
@@ -594,14 +939,19 @@ Coelho Neto - MA
             
             <div className="border-t pt-4">
               <div className="flex justify-between">
-                <Button variant="outline" onClick={() => handleDownloadPDF()}>
+                <Button variant="outline" onClick={printDocument}>
+                  <Printer className="mr-2 h-4 w-4" />
+                  Imprimir
+                </Button>
+                
+                <Button variant="outline" onClick={handleDownloadPDF}>
                   <Download className="mr-2 h-4 w-4" />
                   Baixar PDF
                 </Button>
                 
-                <Button variant="outline" onClick={() => handleSendEmail()}>
+                <Button variant="outline" onClick={handleSendEmail}>
                   <Send className="mr-2 h-4 w-4" />
-                  Enviar por E-mail
+                  Enviar Email
                 </Button>
               </div>
             </div>

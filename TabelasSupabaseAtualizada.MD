@@ -1,3 +1,4 @@
+
 # Documentação das Tabelas do Supabase
 
 Este documento contém informações detalhadas sobre todas as tabelas utilizadas no projeto, instruções para replicar o banco de dados em uma nova instância do Supabase, e detalhes de configuração.
@@ -475,78 +476,6 @@ Recomendamos configurar backups regulares do seu banco de dados Supabase:
 
 ### 9.1 Tabela de Logs de Documentos Fiscais
 Foi adicionada uma nova tabela `fiscal_document_logs` para registrar ações realizadas com documentos fiscais, como impressão, envio por email, e compartilhamento. Isso permite manter um histórico completo de todas as interações com documentos fiscais, útil para auditoria e rastreamento.
-
-## Tabela "documentos"
-
-Esta tabela precisa ser criada no Supabase para armazenar os documentos fiscais emitidos pelo sistema.
-
-```sql
-CREATE TABLE documentos (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  type TEXT NOT NULL CHECK (type IN ('nf', 'nfce', 'nfs')),
-  number TEXT NOT NULL,
-  customer_name TEXT NOT NULL,
-  customer_id TEXT NOT NULL,
-  total_value NUMERIC NOT NULL,
-  description TEXT,
-  issue_date TIMESTAMP WITH TIME ZONE NOT NULL,
-  status TEXT NOT NULL DEFAULT 'authorized',
-  access_key TEXT,
-  pdf_url TEXT,
-  authorization_date TIMESTAMP WITH TIME ZONE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Crie um índice para melhorar a performance de busca
-CREATE INDEX idx_documentos_number ON documentos(number);
-CREATE INDEX idx_documentos_customer ON documentos(customer_name);
-```
-
-## Tabela Alternativa "documentos_fiscais"
-
-Esta tabela alternativa também é suportada pelo sistema e pode ser usada:
-
-```sql
-CREATE TABLE documentos_fiscais (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  type TEXT NOT NULL CHECK (type IN ('nf', 'nfce', 'nfs')),
-  number TEXT NOT NULL,
-  customer_name TEXT NOT NULL,
-  customer_id TEXT NOT NULL,
-  total_value NUMERIC NOT NULL,
-  description TEXT,
-  issue_date TIMESTAMP WITH TIME ZONE NOT NULL,
-  status TEXT NOT NULL DEFAULT 'authorized',
-  access_key TEXT,
-  pdf_url TEXT,
-  authorization_date TIMESTAMP WITH TIME ZONE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-```
-
-## Compatibilidade com a Tabela em Inglês "documents"
-
-Para compatibilidade com versões anteriores, o sistema também suporta a tabela "documents" (em inglês), embora a recomendação seja usar as tabelas em português:
-
-```sql
-CREATE TABLE documents (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  type TEXT NOT NULL CHECK (type IN ('nf', 'nfce', 'nfs')),
-  number TEXT NOT NULL,
-  customer_name TEXT NOT NULL,
-  value NUMERIC NOT NULL,
-  description TEXT,
-  date TIMESTAMP WITH TIME ZONE NOT NULL,
-  status TEXT NOT NULL DEFAULT 'Emitido',
-  pdf_url TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-```
-
-Essas tabelas devem ser criadas no Supabase para que os documentos possam ser salvos corretamente no banco de dados.
 
 ---
 
