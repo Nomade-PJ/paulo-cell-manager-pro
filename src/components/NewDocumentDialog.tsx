@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, forwardRef } from "react";
 import { 
   Dialog, 
@@ -31,7 +30,6 @@ interface NewDocumentDialogProps {
   onDocumentCreated?: () => void;
 }
 
-// Função auxiliar para obter o título do documento com base no tipo
 const getDocumentTitle = (type: string): string => {
   switch (type) {
     case "nf":
@@ -67,7 +65,6 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
       throw new Error("O valor total deve ser maior que zero.");
     }
 
-    // Validações específicas por tipo de documento
     switch (documentType) {
       case 'nfce':
         if (customerName.trim().length < 3) {
@@ -83,31 +80,26 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
     }
   };
 
-  // Função para gerar dados fiscais
   const generateFiscalData = (type: string) => {
     const now = new Date();
     const timestamp = now.getTime();
     const randomPart = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
     
-    // Gerar número de série baseado no tipo de documento
     const seriesNumber = type === 'nf' ? '001' : 
                           type === 'nfce' ? '002' : '003';
     
-    // Gerar número de documento
     const documentNumber = `${Math.floor(Math.random() * 100000).toString().padStart(6, '0')}`;
     
-    // Gerar chave de acesso de 44 dígitos (com estrutura apropriada)
-    const uf = '35'; // São Paulo
+    const uf = '35';
     const aamm = `${now.getFullYear().toString().substring(2)}${(now.getMonth() + 1).toString().padStart(2, '0')}`;
     const cnpj = '12345678901234';
     const modelo = type === 'nf' ? '55' : type === 'nfce' ? '65' : '57';
     const numero = documentNumber.padStart(9, '0');
     const chaveExtra = timestamp.toString().substring(0, 9);
-    const dv = '0'; // Dígito verificador
+    const dv = '0';
     
     const accessKey = `${uf}${aamm}${cnpj}${modelo}${seriesNumber}${numero}${chaveExtra}${dv}`;
     
-    // Retornar objeto com todos os dados fiscais
     return {
       number: `${type.toUpperCase()}-${seriesNumber}-${documentNumber}`,
       series: seriesNumber,
@@ -118,6 +110,26 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
     };
   };
 
+  const getUserOrganizationId = async (userId: string): Promise<string | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('organization_id')
+        .eq('id', userId)
+        .single();
+        
+      if (error || !data) {
+        console.error("Error fetching organization ID:", error);
+        return null;
+      }
+      
+      return data.organization_id;
+    } catch (error) {
+      console.error("Error in getUserOrganizationId:", error);
+      return null;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -126,10 +138,10 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
       
       setIsSubmitting(true);
 
-      // Gerar dados fiscais
       const fiscalData = generateFiscalData(documentType);
       
-      // Preparar documento para salvar no banco
+      const organizationId = user?.id ? await getUserOrganizationId(user.id) : null;
+      
       const documentData = {
         type: documentType,
         number: fiscalData.number,
@@ -139,10 +151,9 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
         authorization_date: fiscalData.authorization_date,
         status: "authorized",
         access_key: fiscalData.access_key,
-        organization_id: user?.organization_id
+        organization_id: organizationId
       };
       
-      // Inserir no Supabase
       const { data, error } = await supabase
         .from('fiscal_documents')
         .insert([documentData])
@@ -154,7 +165,6 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
         throw new Error(`Erro ao emitir documento: ${error.message}`);
       }
       
-      // Atualizar o documento atual com os dados retornados
       setDocument(data);
       
       toast({
@@ -162,10 +172,8 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
         description: `${getDocumentTitle(documentType)} emitido com sucesso.`,
       });
       
-      // Abrir visualização
       setActiveTab("preview");
       
-      // Chamar callback se fornecido
       if (onDocumentCreated) {
         onDocumentCreated();
       }
@@ -181,14 +189,11 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
     }
   };
 
-  // Função para alternar para a aba de pré-visualização
   const handlePreview = () => {
     try {
       validateDocument();
-      // Se a validação passar, abre a pré-visualização
       setActiveTab("preview");
       
-      // Cria um documento temporário para pré-visualização
       const fiscalData = generateFiscalData(documentType);
       const previewDoc = {
         type: documentType,
