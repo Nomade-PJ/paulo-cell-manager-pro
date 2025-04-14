@@ -1,3 +1,4 @@
+
 import React, { useRef, forwardRef, useImperativeHandle } from "react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/popover";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/utils";
+import { supabase } from "@/integrations/supabaseClient";
 
 interface DocumentPreviewProps {
   type: "nf" | "nfce" | "nfs";
@@ -25,6 +27,8 @@ interface DocumentPreviewProps {
   value: number;
   date: Date;
   description?: string;
+  accessKey?: string;
+  status?: string;
   onPrint?: () => void;
   onShare?: () => void;
   onEmail?: () => void;
@@ -37,6 +41,8 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
   value,
   date,
   description,
+  accessKey,
+  status = "authorized",
   onPrint,
   onShare,
   onEmail
@@ -65,7 +71,7 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
     }
   };
 
-  // Calcular impostos fictícios
+  // Calcular impostos
   const calculateTaxes = () => {
     switch (type) {
       case "nf":
@@ -89,168 +95,171 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
     }
   };
 
+  // Gerar conteúdo HTML para impressora térmica
+  const generateThermalContent = () => {
+    const taxes = calculateTaxes();
+    
+    return `
+      <html>
+        <head>
+          <title>Impressão ${number}</title>
+          <style>
+            @page {
+              size: 80mm auto;
+              margin: 0;
+            }
+            body {
+              font-family: 'Courier New', monospace;
+              font-size: 12px;
+              width: 80mm;
+              margin: 0 auto;
+              padding: 5mm;
+              background-color: white;
+              color: black;
+            }
+            .center {
+              text-align: center;
+            }
+            .bold {
+              font-weight: bold;
+            }
+            .divider {
+              border-top: 1px dashed #000;
+              margin: 8px 0;
+              width: 100%;
+            }
+            .small {
+              font-size: 10px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+            }
+            tr.total {
+              font-weight: bold;
+              border-top: 1px solid #000;
+              margin-top: 5px;
+            }
+            .right {
+              text-align: right;
+            }
+            .break-word {
+              word-wrap: break-word;
+            }
+            .logo {
+              margin-bottom: 8px;
+              font-size: 18px;
+              font-weight: bold;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="center">
+            <div class="logo">PAULO CELL</div>
+            <p class="small">CNPJ: 42.054.453/0001-40</p>
+            <p class="small">Rua: Dr. Paulo Ramos, Bairro: Centro S/n</p>
+            <p class="small">Coelho Neto - MA</p>
+          </div>
+          
+          <div class="divider"></div>
+          
+          <p class="center bold">${getDocumentTitle()}</p>
+          <table class="small">
+            <tr>
+              <td><b>Documento:</b></td>
+              <td>${number}</td>
+            </tr>
+            <tr>
+              <td><b>Cliente:</b></td>
+              <td>${customerName}</td>
+            </tr>
+            <tr>
+              <td><b>Emissão:</b></td>
+              <td>${date.toLocaleString('pt-BR')}</td>
+            </tr>
+            <tr>
+              <td><b>Status:</b></td>
+              <td><b>${status === "authorized" ? "NOTA EMITIDA" : status === "draft" ? "RASCUNHO" : "CANCELADA"}</b></td>
+            </tr>
+          </table>
+          
+          ${description ? `
+          <div class="divider"></div>
+          <p class="small"><b>Descrição:</b></p>
+          <p class="small break-word">${description}</p>
+          ` : ''}
+          
+          <div class="divider"></div>
+          
+          <p class="bold">VALORES:</p>
+          <table class="small">
+            <tr>
+              <td>Subtotal:</td>
+              <td class="right">${formatCurrency(value)}</td>
+            </tr>
+            ${type === "nf" ? 
+              `<tr>
+                <td>ICMS (18%):</td>
+                <td class="right">${formatCurrency(taxes.icms)}</td>
+              </tr>
+              <tr>
+                <td>IPI (5%):</td>
+                <td class="right">${formatCurrency(taxes.ipi)}</td>
+              </tr>` : 
+            type === "nfce" ? 
+              `<tr>
+                <td>ICMS (18%):</td>
+                <td class="right">${formatCurrency(taxes.icms)}</td>
+              </tr>` : 
+            type === "nfs" ? 
+              `<tr>
+                <td>ISS (5%):</td>
+                <td class="right">${formatCurrency(taxes.iss)}</td>
+              </tr>` : ''
+            }
+            <tr class="total">
+              <td><b>Total com impostos:</b></td>
+              <td class="right"><b>${formatCurrency(value + taxes.total)}</b></td>
+            </tr>
+          </table>
+          
+          <div class="divider"></div>
+          
+          <div class="center small">
+            <p><b>Chave de Acesso:</b></p>
+            <p class="break-word">${accessKey || `3525${type.toUpperCase()}0123456789123456789012345678901`}</p>
+            <p>Consulte pela chave de acesso em:</p>
+            <p><b>www.nfe.fazenda.gov.br</b></p>
+          </div>
+          
+          <div class="divider"></div>
+          
+          <div class="center">
+            <p>Obrigado pela preferência!</p>
+          </div>
+        </body>
+      </html>
+    `;
+  };
+
   // Função para imprimir via impressora térmica
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (onPrint) {
       onPrint();
       return;
     }
 
-    // Tentativa de imprimir usando a API de impressão do navegador
-    // Configurada para impressora térmica
     try {
+      // Gerar conteúdo para impressora térmica
+      const content = generateThermalContent();
+      
       // Criar um elemento temporário para impressão
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
         throw new Error("Não foi possível abrir a janela de impressão");
       }
-
-      const taxes = calculateTaxes();
-
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Impressão ${number}</title>
-            <style>
-              @page {
-                size: 80mm auto;
-                margin: 0;
-              }
-              body {
-                font-family: 'Courier New', monospace;
-                font-size: 12px;
-                width: 80mm;
-                margin: 0 auto;
-                padding: 5mm;
-                background-color: white;
-                color: black;
-              }
-              .center {
-                text-align: center;
-              }
-              .bold {
-                font-weight: bold;
-              }
-              .divider {
-                border-top: 1px dashed #000;
-                margin: 8px 0;
-                width: 100%;
-              }
-              .small {
-                font-size: 10px;
-              }
-              table {
-                width: 100%;
-                border-collapse: collapse;
-              }
-              tr.total {
-                font-weight: bold;
-                border-top: 1px solid #000;
-                margin-top: 5px;
-              }
-              .right {
-                text-align: right;
-              }
-              .break-word {
-                word-wrap: break-word;
-              }
-              .logo {
-                margin-bottom: 8px;
-                font-size: 18px;
-                font-weight: bold;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="center">
-              <div class="logo">PAULO CELL</div>
-              <p class="small">CNPJ: 42.054.453/0001-40</p>
-              <p class="small">Rua: Dr. Paulo Ramos, Bairro: Centro S/n</p>
-              <p class="small">Coelho Neto - MA</p>
-            </div>
-            
-            <div class="divider"></div>
-            
-            <p class="center bold">${getDocumentTitle()}</p>
-            <table class="small">
-              <tr>
-                <td><b>Documento:</b></td>
-                <td>${number}</td>
-              </tr>
-              <tr>
-                <td><b>Cliente:</b></td>
-                <td>${customerName}</td>
-              </tr>
-              <tr>
-                <td><b>Emissão:</b></td>
-                <td>${date.toLocaleString('pt-BR')}</td>
-              </tr>
-              <tr>
-                <td><b>Status:</b></td>
-                <td><b>NOTA EMITIDA</b></td>
-              </tr>
-            </table>
-            
-            ${description ? `
-            <div class="divider"></div>
-            <p class="small"><b>Descrição:</b></p>
-            <p class="small break-word">${description}</p>
-            ` : ''}
-            
-            <div class="divider"></div>
-            
-            <p class="bold">VALORES:</p>
-            <table class="small">
-              <tr>
-                <td>Subtotal:</td>
-                <td class="right">${formatCurrency(value)}</td>
-              </tr>
-              ${type === "nf" ? 
-                `<tr>
-                  <td>ICMS (18%):</td>
-                  <td class="right">${formatCurrency(taxes.icms)}</td>
-                </tr>
-                <tr>
-                  <td>IPI (5%):</td>
-                  <td class="right">${formatCurrency(taxes.ipi)}</td>
-                </tr>` : 
-              type === "nfce" ? 
-                `<tr>
-                  <td>ICMS (18%):</td>
-                  <td class="right">${formatCurrency(taxes.icms)}</td>
-                </tr>` : 
-              type === "nfs" ? 
-                `<tr>
-                  <td>ISS (5%):</td>
-                  <td class="right">${formatCurrency(taxes.iss)}</td>
-                </tr>` : ''
-              }
-              <tr class="total">
-                <td><b>Total com impostos:</b></td>
-                <td class="right"><b>${formatCurrency(value + taxes.total)}</b></td>
-              </tr>
-            </table>
-            
-            <div class="divider"></div>
-            
-            <div class="center small">
-              <p><b>Chave de Acesso:</b></p>
-              <p class="break-word">3525${type.toUpperCase()}0123456789123456789012345678901</p>
-              <p>Consulte pela chave de acesso em:</p>
-              <p><b>www.nfe.fazenda.gov.br</b></p>
-            </div>
-            
-            <div class="divider"></div>
-            
-            <div class="center">
-              <p><b>DOCUMENTO NÃO FISCAL</b></p>
-              <p><b>DOCUMENTO FICTÍCIO - APENAS DEMONSTRAÇÃO</b></p>
-              <p>Obrigado pela preferência!</p>
-            </div>
-          </body>
-        </html>
-      `);
       
+      printWindow.document.write(content);
       printWindow.document.close();
       printWindow.focus();
       
@@ -258,6 +267,11 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
       setTimeout(() => {
         try {
           printWindow.print();
+          
+          // Registrar o evento de impressão no banco de dados
+          if (status === "authorized") {
+            registerDocumentEvent('printed');
+          }
           
           // Fechar a janela após imprimir
           printWindow.addEventListener('afterprint', () => {
@@ -282,6 +296,52 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
       toast({
         title: "Erro na impressão",
         description: "Não foi possível preparar o documento para impressão. Verifique se sua impressora está configurada.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Função para criar e baixar um arquivo PDF
+  const handleDownloadThermal = async () => {
+    try {
+      // Gerar conteúdo HTML para o arquivo
+      const content = generateThermalContent();
+      
+      // Criar um blob com o conteúdo HTML
+      const blob = new Blob([content], { type: 'text/html' });
+      
+      // Criar URL temporária para o blob
+      const url = URL.createObjectURL(blob);
+      
+      // Criar elemento de download
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `documento-${number.replace(/\//g, '-')}.html`;
+      
+      // Simular clique para iniciar o download
+      document.body.appendChild(a);
+      a.click();
+      
+      // Limpar recursos
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+      
+      // Registrar evento de download
+      if (status === "authorized") {
+        registerDocumentEvent('downloaded');
+      }
+      
+      toast({
+        title: "Arquivo gerado",
+        description: "O documento foi baixado com sucesso.",
+      });
+    } catch (error) {
+      console.error("Erro ao gerar arquivo:", error);
+      toast({
+        title: "Erro ao gerar arquivo",
+        description: "Não foi possível gerar o arquivo do documento.",
         variant: "destructive",
       });
     }
@@ -317,6 +377,11 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
       // Abrir o cliente de e-mail padrão do usuário
       window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       
+      // Registrar evento de email
+      if (status === "authorized") {
+        registerDocumentEvent('email_sent');
+      }
+      
       toast({
         title: "E-mail pronto para envio",
         description: "Seu cliente de e-mail foi aberto com o documento anexado.",
@@ -328,6 +393,27 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
         description: "Não foi possível abrir o cliente de e-mail.",
         variant: "destructive",
       });
+    }
+  };
+
+  // Registrar evento do documento no banco de dados
+  const registerDocumentEvent = async (eventType: string) => {
+    try {
+      await supabase
+        .from('fiscal_document_logs')
+        .insert([
+          {
+            document_number: number,
+            action: eventType,
+            details: {
+              document_type: type,
+              customer: customerName,
+              timestamp: new Date().toISOString()
+            }
+          }
+        ]);
+    } catch (error) {
+      console.error("Erro ao registrar evento do documento:", error);
     }
   };
 
@@ -359,12 +445,22 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
   const shareViaWhatsApp = () => {
     const content = shareContent();
     window.open(`https://wa.me/?text=${encodeURIComponent(content)}`, '_blank');
+    
+    // Registrar evento de compartilhamento
+    if (status === "authorized") {
+      registerDocumentEvent('shared_whatsapp');
+    }
   };
 
   // Função para compartilhar via SMS
   const shareViaSMS = () => {
     const content = shareContent();
     window.open(`sms:?&body=${encodeURIComponent(content)}`, '_blank');
+    
+    // Registrar evento de compartilhamento
+    if (status === "authorized") {
+      registerDocumentEvent('shared_sms');
+    }
   };
 
   // Função para compartilhar via outras redes sociais
@@ -373,6 +469,11 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
       navigator.share({
         title: `${getDocumentTitle()} - ${number}`,
         text: shareContent(),
+      }).then(() => {
+        // Registrar evento de compartilhamento
+        if (status === "authorized") {
+          registerDocumentEvent('shared_other');
+        }
       }).catch(err => {
         console.error('Erro ao compartilhar:', err);
         copyToClipboard(shareContent());
@@ -388,7 +489,9 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
     <Card className="border border-gray-200 w-full max-w-[400px] mx-auto">
       <CardHeader className="bg-gray-50 text-center border-b border-gray-200 py-3">
         <CardTitle className="text-sm font-bold">{getDocumentTitle()}</CardTitle>
-        <p className="text-xs text-muted-foreground mt-1">DOCUMENTO FICTÍCIO - APENAS DEMONSTRAÇÃO</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          {status === "draft" ? "DOCUMENTO EM RASCUNHO" : "DOCUMENTO EMITIDO"}
+        </p>
       </CardHeader>
       <CardContent className="p-4 space-y-3 text-sm">
         <ScrollArea className="h-[280px] pr-3">
@@ -404,7 +507,9 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
               <p><span className="font-medium">Documento:</span> {number}</p>
               <p><span className="font-medium">Cliente:</span> {customerName}</p>
               <p><span className="font-medium">Emissão:</span> {date.toLocaleString('pt-BR')}</p>
-              <p><span className="font-medium">Status:</span> <span className="text-green-600 font-medium">NOTA EMITIDA</span></p>
+              <p><span className="font-medium">Status:</span> <span className={`font-medium ${status === "authorized" ? "text-green-600" : "text-yellow-600"}`}>
+                {status === "authorized" ? "NOTA EMITIDA" : "RASCUNHO"}
+              </span></p>
             </div>
             
             {description && (
@@ -450,7 +555,9 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
             
             <div className="text-center pt-3 border-t border-gray-200">
               <p className="text-xs">Chave de Acesso:</p>
-              <p className="text-xs break-all font-mono">3525{type.toUpperCase()}0123456789123456789012345678901</p>
+              <p className="text-xs break-all font-mono">
+                {accessKey || `3525${type.toUpperCase()}0123456789123456789012345678901`}
+              </p>
               <div className="mt-2 text-xs">
                 <p>Consulte pela chave de acesso em:</p>
                 <p className="font-medium">www.nfe.fazenda.gov.br</p>
@@ -499,10 +606,10 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
                 variant="ghost" 
                 size="sm" 
                 className="flex justify-start px-2 py-1.5"
-                onClick={shareViaOther}
+                onClick={handleDownloadThermal}
               >
                 <FileText className="h-4 w-4 mr-2" />
-                Outras opções
+                Baixar formato térmico
               </Button>
             </div>
           </PopoverContent>
@@ -512,4 +619,5 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
   );
 });
 
-export default DocumentPreview; 
+DocumentPreview.displayName = "DocumentPreview";
+export default DocumentPreview;

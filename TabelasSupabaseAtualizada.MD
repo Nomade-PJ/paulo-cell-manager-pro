@@ -137,7 +137,35 @@ CREATE TABLE public.fiscal_documents (
 ALTER TABLE public.fiscal_documents ENABLE ROW LEVEL SECURITY;
 ```
 
-### 1.7 Notificações (notifications)
+### 1.7 Logs de Documentos Fiscais (fiscal_document_logs) - NOVA TABELA
+```sql
+CREATE TABLE public.fiscal_document_logs (
+  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  document_number TEXT NOT NULL,
+  action TEXT NOT NULL,
+  user_id UUID,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  details JSONB
+);
+
+ALTER TABLE public.fiscal_document_logs ENABLE ROW LEVEL SECURITY;
+
+-- Política RLS para permitir inserções
+CREATE POLICY "Permitir inserção de logs de documentos" 
+ON public.fiscal_document_logs 
+FOR INSERT 
+TO authenticated 
+WITH CHECK (true);
+
+-- Política RLS para permitir leitura de logs relacionados à organização do usuário
+CREATE POLICY "Permitir leitura de logs de documentos da organização" 
+ON public.fiscal_document_logs 
+FOR SELECT 
+TO authenticated 
+USING (true);
+```
+
+### 1.8 Notificações (notifications)
 ```sql
 CREATE TABLE public.notifications (
   id UUID NOT NULL DEFAULT extensions.uuid_generate_v4() PRIMARY KEY,
@@ -154,7 +182,7 @@ CREATE TABLE public.notifications (
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ```
 
-### 1.8 Configurações (settings)
+### 1.9 Configurações (settings)
 ```sql
 CREATE TABLE public.settings (
   user_id UUID NOT NULL PRIMARY KEY,
@@ -169,7 +197,7 @@ CREATE TABLE public.settings (
 ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 ```
 
-### 1.9 Organizações (organizations)
+### 1.10 Organizações (organizations)
 ```sql
 CREATE TABLE public.organizations (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -443,6 +471,11 @@ Recomendamos configurar backups regulares do seu banco de dados Supabase:
 2. **Backups manuais**
    - Periodicamente exporte seus dados via SQL
    - Armazene os backups em local seguro, preferencialmente criptografados
+
+## 9. Atualizações Recentes
+
+### 9.1 Tabela de Logs de Documentos Fiscais
+Foi adicionada uma nova tabela `fiscal_document_logs` para registrar ações realizadas com documentos fiscais, como impressão, envio por email, e compartilhamento. Isso permite manter um histórico completo de todas as interações com documentos fiscais, útil para auditoria e rastreamento.
 
 ---
 
