@@ -92,30 +92,71 @@ const Documents = () => {
   const [monthlyCount, setMonthlyCount] = useState(0);
   const [monthlyStats, setMonthlyStats] = useState<{month: string; count: number}[]>([]);
   const [sefazStatus, setSefazStatus] = useState<"online" | "offline">("online");
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
+  // Forçar atualização
+  const forceRefresh = () => {
+    setRefreshCounter(prev => prev + 1);
+  };
 
   // Carregar documentos fiscais
   const loadDocuments = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('fiscal_documents')
+      // Tentar carregar da tabela 'documentos'
+      const { data: documentosData, error: documentosError } = await supabase
+        .from('documentos')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-
-      // Se temos dados, usamos eles, senão usamos os dados mockados
-      if (data && data.length > 0) {
-        setDocuments(data);
-      } else {
-        // Usar dados mockados apenas quando não há documentos no Supabase
-        setDocuments(mockDocuments);
-        
-        toast({
-          title: "Modo Demonstração",
-          description: "Carregando exemplos de documentos fiscais.",
-        });
+      if (!documentosError && documentosData && documentosData.length > 0) {
+        setDocuments(documentosData);
+        return;
       }
+
+      // Se não encontrar, tentar da tabela 'documentos_fiscais'
+      const { data: fiscaisData, error: fiscaisError } = await supabase
+        .from('documentos_fiscais')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!fiscaisError && fiscaisData && fiscaisData.length > 0) {
+        setDocuments(fiscaisData);
+        return;
+      }
+
+      // Por último, tentar da tabela 'documents' (em inglês)
+      const { data: documentsData, error: documentsError } = await supabase
+        .from('documents')
+        .select('*')
+        .order('date', { ascending: false });
+
+      if (!documentsError && documentsData && documentsData.length > 0) {
+        // Converter para o formato FiscalDocument
+        const convertedData: FiscalDocument[] = documentsData.map(doc => ({
+          id: doc.id,
+          number: doc.number,
+          type: doc.type,
+          status: doc.status === "Emitido" ? "authorized" : "pending",
+          customer_id: "unknown",
+          customer_name: doc.customer_name,
+          issue_date: doc.date,
+          total_value: doc.value,
+          created_at: doc.date,
+          updated_at: doc.date
+        }));
+        
+        setDocuments(convertedData);
+        return;
+      }
+
+      // Se não encontrou dados em nenhuma tabela, usar dados mockados
+      setDocuments(mockDocuments);
+      
+      toast({
+        title: "Modo Demonstração",
+        description: "Carregando exemplos de documentos fiscais.",
+      });
     } catch (error) {
       console.error('Error loading documents:', error);
       
@@ -135,7 +176,7 @@ const Documents = () => {
   useEffect(() => {
     loadDocuments();
     loadFiscalDashboard();
-  }, []);
+  }, [refreshCounter]); // Recarrega sempre que refreshCounter mudar
 
   // Carregar dados do painel fiscal
   const loadFiscalDashboard = async () => {
@@ -272,9 +313,7 @@ const Documents = () => {
 
   const handleDocumentUpdated = async () => {
     try {
-      await loadDocuments();
-      await loadFiscalDashboard();
-      
+      forceRefresh(); // Força uma atualização completa
       toast({
         title: "Documentos atualizados",
         description: "Lista de documentos atualizada com sucesso."
@@ -292,12 +331,7 @@ const Documents = () => {
   const handleNewDocument = async () => {
     try {
       setIsLoading(true);
-      // Recarregar os documentos do Supabase
-      await loadDocuments();
-      
-      // Recarregar o dashboard fiscal para mostrar estatísticas atualizadas
-      await loadFiscalDashboard();
-      
+      forceRefresh(); // Força uma atualização completa
       toast({
         title: "Documentos Atualizados",
         description: "Lista de documentos fiscais atualizada com sucesso.",
@@ -380,7 +414,13 @@ const Documents = () => {
         title="Documentos Fiscais"
         description="Gerencie notas fiscais e documentos fiscais eletrônicos."
         actions={
-          <NewDocumentDialog onDocumentCreated={handleNewDocument} />
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={forceRefresh} className="flex items-center gap-1">
+              <RefreshCw className="h-4 w-4" />
+              Atualizar
+            </Button>
+            <NewDocumentDialog onDocumentCreated={handleNewDocument} />
+          </div>
         }
       >
         <FileText className="h-6 w-6" />

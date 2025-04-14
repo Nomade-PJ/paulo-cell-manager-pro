@@ -6,7 +6,8 @@ import {
   RefreshCw, 
   X, 
   Eye, 
-  Send 
+  Send,
+  Trash2 
 } from "lucide-react";
 import { 
   DropdownMenu,
@@ -43,8 +44,8 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
   const handleReissue = async () => {
     try {
       // Verificar se o documento pode ser reemitido
-      if (document.status !== 'authorized') {
-        throw new Error('Apenas documentos autorizados podem ser reemitidos');
+      if (document.status !== 'authorized' && document.status !== 'pending') {
+        throw new Error('Apenas documentos autorizados ou pendentes podem ser reemitidos');
       }
 
       toast({
@@ -52,15 +53,17 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
         description: `Iniciando reemissão do documento ${document.number}...`,
       });
 
-      // Gerar um novo número para o documento reemitido
       const now = new Date();
       const timestamp = now.getTime();
+      
+      // Gerar novo número para o documento
       const seriesNumber = document.type === 'nf' ? '001' : 
                           document.type === 'nfce' ? '002' : '003';
+      
       const documentNumber = `${Math.floor(Math.random() * 100000).toString().padStart(6, '0')}`;
       const newNumber = `${document.type.toUpperCase()}-${seriesNumber}-${documentNumber}`;
       
-      // Gerar nova chave de acesso
+      // Gerar nova chave de acesso (lógica simplificada)
       const uf = '35'; // São Paulo
       const aamm = `${now.getFullYear().toString().substring(2)}${(now.getMonth() + 1).toString().padStart(2, '0')}`;
       const cnpj = '12345678901234';
@@ -68,39 +71,49 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
       const numero = documentNumber.padStart(9, '0');
       const chaveExtra = timestamp.toString().substring(0, 9);
       const dv = '0';
+      
       const newAccessKey = `${uf}${aamm}${cnpj}${modelo}${seriesNumber}${numero}${chaveExtra}${dv}`;
 
-      // Inserir novo documento como reemissão
-      const { data, error } = await supabase
-        .from('fiscal_documents')
-        .insert([
-          {
-            type: document.type,
-            customer_id: document.customer_id,
-            customer_name: document.customer_name,
-            total_value: document.total_value,
-            items: document.items,
-            status: 'authorized', // Já emitimos como autorizado
-            original_document_id: document.id,
-            number: newNumber,
-            series: seriesNumber,
-            access_key: newAccessKey,
-            authorization_date: now.toISOString(),
-            issue_date: now.toISOString(),
-            protocol_number: `${now.getFullYear()}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}${timestamp.toString().substring(5, 13)}`
-          }
-        ]);
+      // Preparar objeto para inserção
+      const newDocObject = {
+        id: crypto.randomUUID(),
+        type: document.type,
+        customer_id: document.customer_id || 'cliente-padrao',
+        customer_name: document.customer_name,
+        total_value: document.total_value,
+        description: `Reemissão do documento ${document.number}`,
+        status: 'authorized', 
+        number: newNumber,
+        issue_date: now.toISOString(),
+        access_key: newAccessKey,
+        authorization_date: now.toISOString(),
+        created_at: now.toISOString(),
+        updated_at: now.toISOString()
+      };
 
-      if (error) throw error;
+      // Inserir na tabela documentos
+      const { error } = await supabase
+        .from('documentos')
+        .insert([newDocObject]);
+      
+      if (error) {
+        console.error("Erro ao reemitir documento:", error);
+        throw new Error("Não foi possível reemitir o documento. Verifique se todos os campos obrigatórios estão preenchidos.");
+      }
 
       // Criar notificação sobre a reemissão do documento
       if (user) {
-        await sendDocumentNotification(
-          user.id,
-          newNumber,
-          "Documento reemitido com sucesso",
-          document.id
-        );
+        try {
+          await sendDocumentNotification(
+            user.id,
+            newNumber,
+            "Documento reemitido com sucesso",
+            document.id
+          );
+        } catch (notifError) {
+          console.error("Erro ao enviar notificação:", notifError);
+          // Não interrompe o fluxo em caso de erro na notificação
+        }
       }
 
       toast({
@@ -183,118 +196,196 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
     }
   };
 
-  // Handler for document download
-  const handleDownloadPDF = async () => {
+  // Handler for downloading PDF
+  const handleDownloadPDF = () => {
     try {
+      // Gerar HTML para o documento
+      const docHTML = generateDocumentHTML();
+      
+      // Converter HTML para Blob (simulando um PDF)
+      const blob = new Blob([docHTML], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      
+      // Criar link para download
+      const a = window.document.createElement('a');
+      a.href = url;
+      a.download = `documento_${document.number.replace(/[^a-zA-Z0-9]/g, '_')}.html`;
+      window.document.body.appendChild(a);
+      a.click();
+      
+      // Limpar
+      setTimeout(() => {
+        window.document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 0);
+      
       toast({
         title: "Download iniciado",
-        description: `Gerando PDF do documento ${document.number}...`,
+        description: `O documento ${document.number} foi preparado para download.`,
       });
-
-      // Gerar um PDF fictício simples no cliente
-      const docType = document.type.toUpperCase();
-      const docTitle = document.type === 'nf' ? 'NOTA FISCAL ELETRÔNICA' : 
-                      document.type === 'nfce' ? 'NOTA FISCAL DE CONSUMIDOR ELETRÔNICA' : 
-                      'NOTA FISCAL DE SERVIÇO ELETRÔNICA';
-      
-      // Estrutura básica do PDF em HTML
-      const pdfContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>${document.number}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            h1 { text-align: center; font-size: 18px; margin-bottom: 20px; }
-            .header { border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; }
-            .info-label { font-weight: bold; margin-right: 10px; }
-            .info-row { margin-bottom: 8px; }
-            .section { margin-bottom: 20px; }
-            .document-title { text-align: center; font-size: 22px; font-weight: bold; margin: 30px 0; }
-            .footer { margin-top: 40px; font-size: 12px; text-align: center; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>PAULO CELL SISTEMA</h1>
-            <p>CNPJ: 12.345.678/0001-99</p>
-          </div>
-          
-          <div class="document-title">${docTitle}</div>
-          
-          <div class="section">
-            <div class="info-row">
-              <span class="info-label">Número:</span> ${document.number}
-            </div>
-            <div class="info-row">
-              <span class="info-label">Data de Emissão:</span> ${new Date(document.issue_date).toLocaleDateString('pt-BR')}
-            </div>
-            <div class="info-row">
-              <span class="info-label">Status:</span> ${document.status === 'authorized' ? 'AUTORIZADA' : document.status.toUpperCase()}
-            </div>
-            <div class="info-row">
-              <span class="info-label">Chave de Acesso:</span> ${document.access_key}
-            </div>
-          </div>
-          
-          <div class="section">
-            <div class="info-row">
-              <span class="info-label">Cliente:</span> ${document.customer_name}
-            </div>
-            <div class="info-row">
-              <span class="info-label">Valor Total:</span> R$ ${Number(document.total_value).toFixed(2).replace('.', ',')}
-            </div>
-          </div>
-          
-          <div class="footer">
-            <p>Documento fiscal emitido por Sistema Paulo Cell - versão 1.0.0</p>
-            <p>Documento emitido em ambiente de homologação - SEM VALOR FISCAL</p>
-          </div>
-        </body>
-        </html>
-      `;
-      
-      // Converter o HTML para Blob
-      const blob = new Blob([pdfContent], { type: 'text/html' });
-      const url = window.URL.createObjectURL(blob);
-      
-      try {
-        // Criar elemento de download
-        const downloadLink = window.document.createElement('a');
-        downloadLink.style.display = 'none';
-        downloadLink.href = url;
-        downloadLink.setAttribute('download', `${document.number}.html`);
-        
-        // Adicionar ao DOM
-        window.document.body.appendChild(downloadLink);
-        
-        // Iniciar download
-        downloadLink.click();
-        
-        // Aguardar um pequeno intervalo antes de remover o elemento
-        setTimeout(() => {
-          if (window.document.body.contains(downloadLink)) {
-            window.document.body.removeChild(downloadLink);
-          }
-        }, 100);
-      } finally {
-        // Revogar a URL do blob após um tempo para garantir que o download foi iniciado
-        setTimeout(() => {
-          window.URL.revokeObjectURL(url);
-        }, 200);
-      }
-      
-      toast({
-        title: "Download concluído",
-        description: `O documento ${document.number} foi baixado.`,
-      });
-    } catch (error: any) {
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
       toast({
         title: "Erro no download",
-        description: error.message || "Não foi possível baixar o documento.",
+        description: "Não foi possível gerar o arquivo para download.",
         variant: "destructive",
       });
-      console.error("Error downloading document:", error);
+    }
+  };
+
+  // Gerar HTML do documento para impressão/download
+  const generateDocumentHTML = () => {
+    const issueDate = new Date(document.issue_date);
+    
+    // Calcular impostos fictícios
+    const taxes = calculateTaxes();
+    
+    return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Documento ${document.number}</title>
+        <meta charset="UTF-8">
+        <style>
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
+          body {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            width: 80mm;
+            margin: 0 auto;
+            padding: 5mm;
+            background-color: white;
+            color: black;
+          }
+          .center {
+            text-align: center;
+          }
+          .bold {
+            font-weight: bold;
+          }
+          .divider {
+            border-top: 1px dashed #000;
+            margin: 8px 0;
+            width: 100%;
+          }
+          .small {
+            font-size: 10px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+          tr.total {
+            font-weight: bold;
+            border-top: 1px solid #000;
+            margin-top: 5px;
+          }
+          .right {
+            text-align: right;
+          }
+          .break-word {
+            word-wrap: break-word;
+          }
+          .logo {
+            margin-bottom: 8px;
+            font-size: 18px;
+            font-weight: bold;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="center">
+          <div class="logo">PAULO CELL</div>
+          <p class="small">CNPJ: 42.054.453/0001-40</p>
+          <p class="small">Rua: Dr. Paulo Ramos, Bairro: Centro S/n</p>
+          <p class="small">Coelho Neto - MA</p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <p class="center bold">${getDocumentTypeLabel().toUpperCase()}</p>
+        <table class="small">
+          <tr>
+            <td><b>Documento:</b></td>
+            <td>${document.number}</td>
+          </tr>
+          <tr>
+            <td><b>Cliente:</b></td>
+            <td>${document.customer_name}</td>
+          </tr>
+          <tr>
+            <td><b>Emissão:</b></td>
+            <td>${issueDate.toLocaleString('pt-BR')}</td>
+          </tr>
+          <tr>
+            <td><b>Status:</b></td>
+            <td><b>${document.status === "authorized" ? "AUTORIZADA" : document.status === "pending" ? "PENDENTE" : "CANCELADA"}</b></td>
+          </tr>
+        </table>
+        
+        <div class="divider"></div>
+        
+        <p class="bold">VALORES:</p>
+        <table class="small">
+          <tr>
+            <td>Subtotal:</td>
+            <td class="right">${formatCurrency(document.total_value)}</td>
+          </tr>
+          <tr class="total">
+            <td><b>Total:</b></td>
+            <td class="right"><b>${formatCurrency(document.total_value)}</b></td>
+          </tr>
+        </table>
+        
+        <div class="divider"></div>
+        
+        <div class="center small">
+          <p><b>Chave de Acesso:</b></p>
+          <p class="break-word">${document.access_key || '3525' + document.type.toUpperCase() + '0123456789123456789012345678901'}</p>
+          <p>Consulte pela chave de acesso em:</p>
+          <p><b>www.nfe.fazenda.gov.br</b></p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="center">
+          <p><b>DOCUMENTO FISCAL</b></p>
+          <p>Obrigado pela preferência!</p>
+        </div>
+      </body>
+    </html>
+    `;
+  };
+
+  // Função para calcular impostos fictícios
+  const calculateTaxes = () => {
+    return {
+      total: document.total_value * 0.10 // Imposto fictício de 10%
+    };
+  };
+
+  // Função para formatar valor em moeda
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
+  };
+
+  // Obter o rótulo do tipo de documento
+  const getDocumentTypeLabel = () => {
+    switch (document.type) {
+      case "nf":
+        return "Nota Fiscal Eletrônica";
+      case "nfce":
+        return "Nota Fiscal de Consumidor Eletrônica";
+      case "nfs":
+        return "Nota Fiscal de Serviço";
+      default:
+        return String(document.type).toUpperCase();
     }
   };
 
@@ -304,59 +395,80 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
   };
 
   // Handler for sending by email
-  const handleSendEmail = async () => {
+  const handleSendEmail = () => {
     try {
-      toast({
-        title: "Envio por email",
-        description: `Preparando envio do documento ${document.number}...`,
-      });
+      const issueDate = new Date(document.issue_date);
+      const formattedValue = new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+      }).format(document.total_value);
+      
+      // Preparar o assunto e corpo do e-mail
+      const subject = `${document.type.toUpperCase()} ${document.number} - Paulo Cell`;
+      const body = `
+Olá ${document.customer_name},
 
-      // Simular o envio do email (sem chamar API externa)
-      // Apenas delay para simular o processamento
-      await new Promise(resolve => setTimeout(resolve, 1500));
+Segue abaixo o documento fiscal emitido pela Paulo Cell.
+
+Dados do documento:
+- Documento: ${document.number}
+- Tipo: ${document.type.toUpperCase()}
+- Data de emissão: ${issueDate.toLocaleDateString('pt-BR')}
+- Valor total: ${formattedValue}
+
+Atenciosamente,
+Paulo Cell
+CNPJ: 42.054.453/0001-40
+Rua: Dr. Paulo Ramos, Bairro: Centro S/n
+Coelho Neto - MA
+`;
       
-      // Notificação de sucesso
+      // Usar o protocolo mailto: para abrir o cliente de e-mail do usuário
+      window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      
       toast({
-        title: "Email enviado",
-        description: `O documento ${document.number} foi enviado por email com sucesso.`,
+        title: "E-mail preparado",
+        description: "O cliente de e-mail foi aberto para envio do documento.",
       });
-      
-      // Gravar o log de envio no banco
-      const { error } = await supabase
-        .from('fiscal_document_logs')
-        .insert([
-          {
-            document_id: document.id,
-            action: 'email_sent',
-            user_id: user?.id,
-            details: {
-              sent_at: new Date().toISOString(),
-              document_number: document.number,
-              recipient: 'cliente@exemplo.com' // Em produção, usaria o email real do cliente
-            }
-          }
-        ]);
-      
-      if (error) {
-        console.error("Erro ao registrar log de envio:", error);
-      }
-      
-      // Criar notificação sobre o envio do documento
-      if (user) {
-        await sendDocumentNotification(
-          user.id,
-          document.number,
-          "Documento enviado por email",
-          document.id
-        );
-      }
-    } catch (error: any) {
+    } catch (error) {
+      console.error('Erro ao preparar e-mail:', error);
       toast({
-        title: "Erro no envio",
-        description: error.message || "Não foi possível enviar o documento por email.",
+        title: "Erro ao enviar e-mail",
+        description: "Não foi possível preparar o e-mail. Verifique se o documento possui todas as informações necessárias.",
         variant: "destructive",
       });
-      console.error("Error sending email:", error);
+    }
+  };
+
+  // Handler para exclusão de documento
+  const handleDelete = async () => {
+    try {
+      toast({
+        title: "Excluindo documento",
+        description: `Iniciando exclusão do documento ${document.number}...`,
+      });
+
+      // Excluir da tabela documentos
+      const { error } = await supabase
+        .from('documentos')
+        .delete()
+        .eq('id', document.id);
+      
+      if (error) throw error;
+
+      toast({
+        title: "Documento excluído",
+        description: `O documento ${document.number} foi excluído com sucesso.`,
+      });
+
+      if (onDocumentUpdated) onDocumentUpdated();
+    } catch (error: any) {
+      toast({
+        title: "Erro na exclusão",
+        description: error.message || "Não foi possível excluir o documento.",
+        variant: "destructive",
+      });
+      console.error("Error deleting document:", error);
     }
   };
 
@@ -412,6 +524,14 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
               </DropdownMenuItem>
             </>
           )}
+          
+          <DropdownMenuItem 
+            onClick={handleDelete} 
+            className="cursor-pointer text-destructive focus:text-destructive"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            <span>Excluir</span>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 

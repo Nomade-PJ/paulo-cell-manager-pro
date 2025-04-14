@@ -159,13 +159,86 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
         status: "Emitido"
       };
       
-      // Inserir no Supabase
-      const { error } = await supabase
-        .from('documents')
-        .insert([docData]);
+      // ID para usar consistentemente
+      const documentId = docData.id;
+      const now = new Date().toISOString();
+      
+      try {
+        // Primeiro, tenta inserir na tabela 'documentos'
+        let error = null;
         
-      if (error) {
-        throw new Error(error.message);
+        // Tenta inserir na tabela 'documentos'
+        const { error: documentosError } = await supabase
+          .from('documentos')
+          .insert([{
+            id: documentId,
+            type: docData.type,
+            number: docData.number,
+            customer_name: customerName,
+            issue_date: now,
+            total_value: parseFloat(totalValue),
+            description: description,
+            status: "authorized", // Equivalente a "Emitido" na FiscalDocument
+            created_at: now,
+            updated_at: now,
+            customer_id: "local_" + Math.floor(Math.random() * 1000000), // ID do cliente fictício
+            authorization_date: now,
+            access_key: fiscalData.access_key
+          }]);
+          
+        if (documentosError) {
+          console.error('Erro ao salvar em documentos:', documentosError);
+          error = documentosError;
+          
+          // Tenta inserir na tabela 'documentos_fiscais' como alternativa
+          const { error: fiscaisError } = await supabase
+            .from('documentos_fiscais')
+            .insert([{
+              id: documentId,
+              type: docData.type,
+              number: docData.number,
+              customer_name: customerName,
+              issue_date: now,
+              total_value: parseFloat(totalValue),
+              description: description,
+              status: "authorized", // Equivalente a "Emitido" na FiscalDocument
+              created_at: now,
+              updated_at: now,
+              customer_id: "local_" + Math.floor(Math.random() * 1000000), // ID do cliente fictício
+              authorization_date: now,
+              access_key: fiscalData.access_key
+            }]);
+            
+          if (fiscaisError) {
+            console.error('Erro ao salvar em documentos_fiscais:', fiscaisError);
+            
+            // Por último, tenta inserir na tabela 'documents' (nome em inglês)
+            const { error: documentsError } = await supabase
+              .from('documents')
+              .insert([{
+                id: documentId,
+                type: docData.type,
+                number: docData.number,
+                customer_name: customerName,
+                value: parseFloat(totalValue),
+                description: description,
+                date: now,
+                status: docData.status
+              }]);
+              
+            if (documentsError) {
+              console.error('Erro ao salvar em documents:', documentsError);
+              // Mostra alerta sobre a falha na gravação
+              toast({
+                title: "Aviso",
+                description: "Documento emitido localmente, mas não foi possível salvar no banco de dados.",
+              });
+            }
+          }
+        }
+      } catch (dbError) {
+        console.error('Falha na operação com o banco:', dbError);
+        // Continua o fluxo mesmo com erro no banco
       }
       
       // Atualizar o documento atual com o ID gerado
@@ -178,18 +251,7 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
       
       // Abrir visualização
       setActiveTab("preview");
-      
-      // Configurar para impressão após sucesso
-      setTimeout(() => {
-        if (documentPreviewRef.current) {
-          // Chamar o método handlePrint diretamente no componente
-          const printMethod = documentPreviewRef.current.handlePrint;
-          if (typeof printMethod === 'function') {
-            printMethod();
-          }
-        }
-      }, 500);
-      
+            
       // Chamar callback se fornecido
       if (onDocumentCreated) {
         setTimeout(() => {
@@ -208,28 +270,23 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
     }
   };
 
-  // Função para simular impressão
+  // Ativar funções reais de impressão, email e compartilhamento
   const handlePrint = () => {
-    toast({
-      title: "Impressão solicitada",
-      description: "A impressão seria enviada para uma impressora térmica.",
-    });
+    if (documentPreviewRef.current && documentPreviewRef.current.handlePrint) {
+      documentPreviewRef.current.handlePrint();
+    }
   };
 
-  // Função para simular compartilhamento
   const handleShare = () => {
-    toast({
-      title: "Compartilhamento",
-      description: "Funcionalidade fictícia de compartilhamento de documento.",
-    });
+    if (documentPreviewRef.current && documentPreviewRef.current.shareViaOther) {
+      documentPreviewRef.current.shareViaOther();
+    }
   };
 
-  // Função para simular envio por email
   const handleEmail = () => {
-    toast({
-      title: "Envio por Email",
-      description: "Funcionalidade fictícia de envio por email.",
-    });
+    if (documentPreviewRef.current && documentPreviewRef.current.handleEmailSend) {
+      documentPreviewRef.current.handleEmailSend();
+    }
   };
 
   // Função para alternar para a aba de pré-visualização
@@ -265,7 +322,7 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="form" className="mt-4">
+          <TabsContent value="form">
             <form onSubmit={handleSubmit} className="space-y-4 py-4">
               <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-2">
@@ -309,28 +366,14 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="description">Descrição do {documentType === "nfs" ? "Serviço" : "Produto"}</Label>
-                  <Textarea 
+                  <Label htmlFor="description">Descrição (opcional)</Label>
+                  <Textarea
                     id="description"
-                    placeholder={`Descreva o ${documentType === "nfs" ? "serviço" : "produto"} fornecido`}
+                    placeholder="Descreva os itens ou serviços incluídos neste documento..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     rows={3}
                   />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="details" className="text-sm text-muted-foreground">
-                    Detalhes adicionais
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    {documentType === "nf" && "Nota fiscal eletrônica para empresas e pessoas físicas."}
-                    {documentType === "nfce" && "Nota fiscal de consumidor para vendas no varejo."}
-                    {documentType === "nfs" && "Nota fiscal para prestação de serviços."}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    <em>Nota: Documentos emitidos são fictícios e apenas para demonstração.</em>
-                  </p>
                 </div>
               </div>
               
@@ -369,24 +412,6 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
               onEmail={handleEmail}
             />
             
-            <div className="flex justify-end w-full mt-6">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => setActiveTab("form")}
-                className="mr-2"
-              >
-                Voltar ao formulário
-              </Button>
-              <Button 
-                type="button" 
-                onClick={handleSubmit} 
-                disabled={isSubmitting}
-                className="bg-primary text-white hover:bg-primary/90"
-              >
-                {isSubmitting ? "Emitindo..." : "Emitir Documento"}
-              </Button>
-            </div>
           </TabsContent>
         </Tabs>
       </DialogContent>

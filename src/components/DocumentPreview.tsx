@@ -89,6 +89,154 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
     }
   };
 
+  // Gerar conteúdo HTML do documento
+  const generateDocumentHtml = () => {
+    const taxes = calculateTaxes();
+    
+    return `
+      <html>
+        <head>
+          <title>Impressão ${number}</title>
+          <style>
+            @page {
+              size: 80mm auto;
+              margin: 0;
+            }
+            body {
+              font-family: 'Courier New', monospace;
+              font-size: 12px;
+              width: 80mm;
+              margin: 0 auto;
+              padding: 5mm;
+              background-color: white;
+              color: black;
+            }
+            .center {
+              text-align: center;
+            }
+            .bold {
+              font-weight: bold;
+            }
+            .divider {
+              border-top: 1px dashed #000;
+              margin: 8px 0;
+              width: 100%;
+            }
+            .small {
+              font-size: 10px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+            }
+            tr.total {
+              font-weight: bold;
+              border-top: 1px solid #000;
+              margin-top: 5px;
+            }
+            .right {
+              text-align: right;
+            }
+            .break-word {
+              word-wrap: break-word;
+            }
+            .logo {
+              margin-bottom: 8px;
+              font-size: 18px;
+              font-weight: bold;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="center">
+            <div class="logo">PAULO CELL</div>
+            <p class="small">CNPJ: 42.054.453/0001-40</p>
+            <p class="small">Rua: Dr. Paulo Ramos, Bairro: Centro S/n</p>
+            <p class="small">Coelho Neto - MA</p>
+          </div>
+          
+          <div class="divider"></div>
+          
+          <p class="center bold">${getDocumentTitle()}</p>
+          <table class="small">
+            <tr>
+              <td><b>Documento:</b></td>
+              <td>${number}</td>
+            </tr>
+            <tr>
+              <td><b>Cliente:</b></td>
+              <td>${customerName}</td>
+            </tr>
+            <tr>
+              <td><b>Emissão:</b></td>
+              <td>${date.toLocaleString('pt-BR')}</td>
+            </tr>
+            <tr>
+              <td><b>Status:</b></td>
+              <td><b>NOTA EMITIDA</b></td>
+            </tr>
+          </table>
+          
+          ${description ? `
+          <div class="divider"></div>
+          <p class="small"><b>Descrição:</b></p>
+          <p class="small break-word">${description}</p>
+          ` : ''}
+          
+          <div class="divider"></div>
+          
+          <p class="bold">VALORES:</p>
+          <table class="small">
+            <tr>
+              <td>Subtotal:</td>
+              <td class="right">${formatCurrency(value)}</td>
+            </tr>
+            ${type === "nf" ? 
+              `<tr>
+                <td>ICMS (18%):</td>
+                <td class="right">${formatCurrency(taxes.icms)}</td>
+              </tr>
+              <tr>
+                <td>IPI (5%):</td>
+                <td class="right">${formatCurrency(taxes.ipi)}</td>
+              </tr>` : 
+            type === "nfce" ? 
+              `<tr>
+                <td>ICMS (18%):</td>
+                <td class="right">${formatCurrency(taxes.icms)}</td>
+              </tr>` : 
+            type === "nfs" ? 
+              `<tr>
+                <td>ISS (5%):</td>
+                <td class="right">${formatCurrency(taxes.iss)}</td>
+              </tr>` : ''
+            }
+            <tr class="total">
+              <td><b>Total com impostos:</b></td>
+              <td class="right"><b>${formatCurrency(value + taxes.total)}</b></td>
+            </tr>
+          </table>
+          
+          <div class="divider"></div>
+          
+          <div class="center small">
+            <p><b>Chave de Acesso:</b></p>
+            <p class="break-word">3525${type.toUpperCase()}0123456789123456789012345678901</p>
+            <p>Consulte pela chave de acesso em:</p>
+            <p><b>www.nfe.fazenda.gov.br</b></p>
+          </div>
+          
+          <div class="divider"></div>
+          
+          <div class="center">
+            <p><b>DOCUMENTO FISCAL</b></p>
+            <p>Obrigado pela preferência!</p>
+          </div>
+        </body>
+      </html>
+    `;
+  };
+
   // Função para imprimir via impressora térmica
   const handlePrint = () => {
     if (onPrint) {
@@ -96,8 +244,6 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
       return;
     }
 
-    // Tentativa de imprimir usando a API de impressão do navegador
-    // Configurada para impressora térmica
     try {
       // Criar um elemento temporário para impressão
       const printWindow = window.open('', '_blank');
@@ -105,151 +251,7 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
         throw new Error("Não foi possível abrir a janela de impressão");
       }
 
-      const taxes = calculateTaxes();
-
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Impressão ${number}</title>
-            <style>
-              @page {
-                size: 80mm auto;
-                margin: 0;
-              }
-              body {
-                font-family: 'Courier New', monospace;
-                font-size: 12px;
-                width: 80mm;
-                margin: 0 auto;
-                padding: 5mm;
-                background-color: white;
-                color: black;
-              }
-              .center {
-                text-align: center;
-              }
-              .bold {
-                font-weight: bold;
-              }
-              .divider {
-                border-top: 1px dashed #000;
-                margin: 8px 0;
-                width: 100%;
-              }
-              .small {
-                font-size: 10px;
-              }
-              table {
-                width: 100%;
-                border-collapse: collapse;
-              }
-              tr.total {
-                font-weight: bold;
-                border-top: 1px solid #000;
-                margin-top: 5px;
-              }
-              .right {
-                text-align: right;
-              }
-              .break-word {
-                word-wrap: break-word;
-              }
-              .logo {
-                margin-bottom: 8px;
-                font-size: 18px;
-                font-weight: bold;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="center">
-              <div class="logo">PAULO CELL</div>
-              <p class="small">CNPJ: 42.054.453/0001-40</p>
-              <p class="small">Rua: Dr. Paulo Ramos, Bairro: Centro S/n</p>
-              <p class="small">Coelho Neto - MA</p>
-            </div>
-            
-            <div class="divider"></div>
-            
-            <p class="center bold">${getDocumentTitle()}</p>
-            <table class="small">
-              <tr>
-                <td><b>Documento:</b></td>
-                <td>${number}</td>
-              </tr>
-              <tr>
-                <td><b>Cliente:</b></td>
-                <td>${customerName}</td>
-              </tr>
-              <tr>
-                <td><b>Emissão:</b></td>
-                <td>${date.toLocaleString('pt-BR')}</td>
-              </tr>
-              <tr>
-                <td><b>Status:</b></td>
-                <td><b>NOTA EMITIDA</b></td>
-              </tr>
-            </table>
-            
-            ${description ? `
-            <div class="divider"></div>
-            <p class="small"><b>Descrição:</b></p>
-            <p class="small break-word">${description}</p>
-            ` : ''}
-            
-            <div class="divider"></div>
-            
-            <p class="bold">VALORES:</p>
-            <table class="small">
-              <tr>
-                <td>Subtotal:</td>
-                <td class="right">${formatCurrency(value)}</td>
-              </tr>
-              ${type === "nf" ? 
-                `<tr>
-                  <td>ICMS (18%):</td>
-                  <td class="right">${formatCurrency(taxes.icms)}</td>
-                </tr>
-                <tr>
-                  <td>IPI (5%):</td>
-                  <td class="right">${formatCurrency(taxes.ipi)}</td>
-                </tr>` : 
-              type === "nfce" ? 
-                `<tr>
-                  <td>ICMS (18%):</td>
-                  <td class="right">${formatCurrency(taxes.icms)}</td>
-                </tr>` : 
-              type === "nfs" ? 
-                `<tr>
-                  <td>ISS (5%):</td>
-                  <td class="right">${formatCurrency(taxes.iss)}</td>
-                </tr>` : ''
-              }
-              <tr class="total">
-                <td><b>Total com impostos:</b></td>
-                <td class="right"><b>${formatCurrency(value + taxes.total)}</b></td>
-              </tr>
-            </table>
-            
-            <div class="divider"></div>
-            
-            <div class="center small">
-              <p><b>Chave de Acesso:</b></p>
-              <p class="break-word">3525${type.toUpperCase()}0123456789123456789012345678901</p>
-              <p>Consulte pela chave de acesso em:</p>
-              <p><b>www.nfe.fazenda.gov.br</b></p>
-            </div>
-            
-            <div class="divider"></div>
-            
-            <div class="center">
-              <p><b>DOCUMENTO NÃO FISCAL</b></p>
-              <p><b>DOCUMENTO FICTÍCIO - APENAS DEMONSTRAÇÃO</b></p>
-              <p>Obrigado pela preferência!</p>
-            </div>
-          </body>
-        </html>
-      `);
+      printWindow.document.write(generateDocumentHtml());
       
       printWindow.document.close();
       printWindow.focus();
@@ -331,6 +333,50 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
     }
   };
 
+  // Função para criar e compartilhar arquivo térmico
+  const createAndShareThermalFile = () => {
+    try {
+      // Gerar conteúdo do documento
+      const htmlContent = generateDocumentHtml();
+      
+      // Criar blob com o HTML formatado como documento térmico
+      const blob = new Blob([htmlContent], { type: 'text/html' });
+      
+      // Criar URL para o blob
+      const fileUrl = URL.createObjectURL(blob);
+      
+      // Criar elemento <a> para download
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = `Documento_${number.replace(/[^a-zA-Z0-9]/g, '_')}.html`;
+      
+      // Adicionar à página, clicar e remover
+      document.body.appendChild(link);
+      link.click();
+      
+      // Remover o link da página
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(fileUrl);
+      }, 100);
+      
+      toast({
+        title: "Arquivo gerado com sucesso",
+        description: "O documento térmico foi criado e baixado.",
+      });
+      
+      return fileUrl;
+    } catch (error) {
+      console.error("Erro ao criar arquivo térmico:", error);
+      toast({
+        title: "Erro ao criar arquivo",
+        description: "Não foi possível gerar o arquivo térmico.",
+        variant: "destructive",
+      });
+      return null;
+    }
+  };
+
   // Função para copiar link para compartilhamento
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(
@@ -359,6 +405,9 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
   const shareViaWhatsApp = () => {
     const content = shareContent();
     window.open(`https://wa.me/?text=${encodeURIComponent(content)}`, '_blank');
+    
+    // Também criar e compartilhar o arquivo térmico
+    createAndShareThermalFile();
   };
 
   // Função para compartilhar via SMS
@@ -379,38 +428,46 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
       });
     } else {
       copyToClipboard(shareContent());
+      // Também criar e compartilhar o arquivo térmico
+      createAndShareThermalFile();
     }
   };
 
   const taxes = calculateTaxes();
 
   return (
-    <Card className="border border-gray-200 w-full max-w-[400px] mx-auto">
-      <CardHeader className="bg-gray-50 text-center border-b border-gray-200 py-3">
-        <CardTitle className="text-sm font-bold">{getDocumentTitle()}</CardTitle>
-        <p className="text-xs text-muted-foreground mt-1">DOCUMENTO FICTÍCIO - APENAS DEMONSTRAÇÃO</p>
+    <Card className="w-[350px] max-h-[600px] shadow-md flex flex-col">
+      <CardHeader className="py-3 px-4 border-b bg-slate-50">
+        <CardTitle className="text-sm font-medium tracking-tight">{getDocumentTitle()}</CardTitle>
       </CardHeader>
-      <CardContent className="p-4 space-y-3 text-sm">
-        <ScrollArea className="h-[280px] pr-3">
-          <div className="space-y-4" ref={documentRef}>
-            <div className="space-y-1 text-center">
-              <h3 className="font-bold text-base">PAULO CELL</h3>
+      <CardContent className="flex-1 px-0 py-0 overflow-hidden">
+        <ScrollArea className="h-[400px]">
+          <div className="p-4 flex flex-col gap-3 text-sm">
+            <div className="text-center">
+              <p className="font-bold text-base">PAULO CELL</p>
               <p className="text-xs">CNPJ: 42.054.453/0001-40</p>
               <p className="text-xs">Rua: Dr. Paulo Ramos, Bairro: Centro S/n</p>
               <p className="text-xs">Coelho Neto - MA</p>
             </div>
             
-            <div className="border-t border-b border-dashed border-gray-200 py-2 space-y-1">
-              <p><span className="font-medium">Documento:</span> {number}</p>
-              <p><span className="font-medium">Cliente:</span> {customerName}</p>
-              <p><span className="font-medium">Emissão:</span> {date.toLocaleString('pt-BR')}</p>
-              <p><span className="font-medium">Status:</span> <span className="text-green-600 font-medium">NOTA EMITIDA</span></p>
+            <div className="space-y-1 border-t border-gray-200 pt-2">
+              <p className="font-medium">Documento:</p>
+              <div className="grid grid-cols-2 gap-1 text-xs">
+                <p>Número:</p>
+                <p>{number}</p>
+                <p>Cliente:</p>
+                <p>{customerName}</p>
+                <p>Emissão:</p>
+                <p>{date.toLocaleString('pt-BR')}</p>
+                <p>Status:</p>
+                <p className="font-medium">Emitido</p>
+              </div>
             </div>
             
             {description && (
-              <div className="space-y-1 py-2">
+              <div className="space-y-1 border-t border-gray-200 pt-2">
                 <p className="font-medium">Descrição:</p>
-                <p className="text-xs break-words">{description}</p>
+                <p className="text-xs">{description}</p>
               </div>
             )}
             
@@ -459,6 +516,7 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
           </div>
         </ScrollArea>
       </CardContent>
+      
       <CardFooter className="flex justify-between bg-gray-50 border-t border-gray-200 py-2">
         <Button variant="outline" size="sm" onClick={handlePrint}>
           <Printer className="h-4 w-4 mr-1" />
