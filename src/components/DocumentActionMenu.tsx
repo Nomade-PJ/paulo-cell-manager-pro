@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { 
   MoreHorizontal, 
@@ -85,7 +86,7 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
             access_key: newAccessKey,
             authorization_date: now.toISOString(),
             issue_date: now.toISOString(),
-            organization_id: user?.id ? await getUserOrganizationId(user.id) : null
+            organization_id: user?.organization_id
           }
         ])
         .select();
@@ -128,27 +129,6 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
         variant: "destructive",
       });
       console.error("Error reissuing document:", error);
-    }
-  };
-
-  // Função auxiliar para obter organization_id do usuário
-  const getUserOrganizationId = async (userId: string): Promise<string | null> => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('organization_id')
-        .eq('id', userId)
-        .single();
-        
-      if (error || !data) {
-        console.error("Error fetching organization ID:", error);
-        return null;
-      }
-      
-      return data.organization_id;
-    } catch (error) {
-      console.error("Error in getUserOrganizationId:", error);
-      return null;
     }
   };
 
