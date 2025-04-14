@@ -1,4 +1,3 @@
-
 import React, { useRef, forwardRef, useImperativeHandle } from "react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -73,22 +72,26 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
 
   // Calcular impostos
   const calculateTaxes = () => {
+    // Garantir que o valor é um número
+    const numericValue = typeof value === 'string' ? parseFloat(value) : value;
+    const validValue = isNaN(numericValue) ? 0 : numericValue;
+
     switch (type) {
       case "nf":
         return {
-          icms: value * 0.18,
-          ipi: value * 0.05,
-          total: value * 0.23
+          icms: validValue * 0.18,
+          ipi: validValue * 0.05,
+          total: validValue * 0.23
         };
       case "nfce":
         return {
-          icms: value * 0.18,
-          total: value * 0.18
+          icms: validValue * 0.18,
+          total: validValue * 0.18
         };
       case "nfs":
         return {
-          iss: value * 0.05,
-          total: value * 0.05
+          iss: validValue * 0.05,
+          total: validValue * 0.05
         };
       default:
         return { total: 0 };
@@ -482,6 +485,55 @@ const DocumentPreview = forwardRef<any, DocumentPreviewProps>(({
       copyToClipboard(shareContent());
       // Também criar e compartilhar o arquivo térmico
       createAndShareThermalFile();
+    }
+  };
+
+  // Função para criar e compartilhar arquivo térmico
+  const createAndShareThermalFile = () => {
+    try {
+      // Gerar conteúdo do documento
+      const htmlContent = generateThermalContent();
+      
+      // Criar blob com o HTML formatado como documento térmico
+      const blob = new Blob([htmlContent], { type: 'text/html' });
+      
+      // Criar URL para o blob
+      const fileUrl = URL.createObjectURL(blob);
+      
+      // Criar elemento <a> para download
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = `Documento_${number.replace(/[^a-zA-Z0-9]/g, '_')}.html`;
+      
+      // Adicionar à página, clicar e remover
+      document.body.appendChild(link);
+      link.click();
+      
+      // Remover o link da página
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(fileUrl);
+      }, 100);
+      
+      // Registrar evento de download
+      if (status === "authorized") {
+        registerDocumentEvent('thermal_file_downloaded');
+      }
+      
+      toast({
+        title: "Arquivo gerado com sucesso",
+        description: "O documento térmico foi criado e baixado.",
+      });
+      
+      return fileUrl;
+    } catch (error) {
+      console.error("Erro ao criar arquivo térmico:", error);
+      toast({
+        title: "Erro ao criar arquivo",
+        description: "Não foi possível gerar o arquivo térmico.",
+        variant: "destructive",
+      });
+      return null;
     }
   };
 

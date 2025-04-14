@@ -1,5 +1,4 @@
-
-import React, { useState, useRef, forwardRef } from "react";
+import React, { useState, useRef, forwardRef, useEffect } from "react";
 import { 
   Dialog, 
   DialogContent, 
@@ -21,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FilePlus, Eye, FileEdit } from "lucide-react";
+import { FilePlus, Eye, FileEdit, SplitSquareHorizontal } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabaseClient";
 import DocumentPreview from "./DocumentPreview";
@@ -54,8 +53,45 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("form");
   const [document, setDocument] = useState<any>(null);
+  const [previewEnabled, setPreviewEnabled] = useState(false);
+  const [viewMode, setViewMode] = useState<"tabs" | "split">("tabs");
   const documentPreviewRef = useRef<any>(null);
   const { user } = useAuth();
+
+  // Atualizar pré-visualização quando campos importantes mudam
+  useEffect(() => {
+    if (customerName || totalValue || documentType) {
+      try {
+        updatePreview();
+        setPreviewEnabled(true);
+      } catch (err) {
+        // Silenciosamente ignore erros durante a atualização automática
+        console.log("Não foi possível atualizar a pré-visualização automaticamente:", err);
+      }
+    }
+  }, [customerName, totalValue, documentType, description]);
+
+  // Função auxiliar para atualizar a pré-visualização
+  const updatePreview = () => {
+    // Criar um documento temporário para pré-visualização
+    const fiscalData = generateFiscalData(documentType);
+    const parsedValue = parseFloat(totalValue);
+    
+    const previewDoc = {
+      type: documentType,
+      number: fiscalData.number,
+      customer_name: customerName || "Cliente",
+      customer_id: "cliente-padrao", 
+      total_value: isNaN(parsedValue) ? 0 : parsedValue,
+      description: description,
+      issue_date: fiscalData.issue_date,
+      authorization_date: fiscalData.authorization_date,
+      status: "draft",
+      access_key: fiscalData.access_key
+    };
+    
+    setDocument(previewDoc);
+  };
 
   const validateDocument = () => {
     if (!documentType || !customerName || !totalValue) {
@@ -63,20 +99,24 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
     }
 
     const value = parseFloat(totalValue);
-    if (isNaN(value) || value <= 0) {
-      throw new Error("O valor total deve ser maior que zero.");
+    if (isNaN(value)) {
+      throw new Error("O valor total deve ser um número válido.");
+    }
+    
+    if (value < 0) {
+      throw new Error("O valor total não pode ser negativo.");
     }
 
     // Validações específicas por tipo de documento
     switch (documentType) {
       case 'nfce':
-        if (customerName.trim().length < 3) {
+        if (customerName.trim().length < 2) {
           throw new Error("Nome do cliente inválido para NFC-e.");
         }
         break;
       case 'nf':
         const nameParts = customerName.trim().split(' ');
-        if (nameParts.length < 2 || nameParts[0].length < 3 || nameParts[1].length < 2) {
+        if (nameParts.length < 2 || nameParts[0].length < 2) {
           throw new Error("Nome completo do cliente é obrigatório para NF-e.");
         }
         break;
@@ -134,17 +174,20 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
         type: documentType,
         number: fiscalData.number,
         customer_name: customerName,
+        customer_id: "cliente-padrao", // Adicionado customer_id para evitar erro de not-null constraint
         total_value: parseFloat(totalValue),
+        description: description || null,
         issue_date: fiscalData.issue_date,
         authorization_date: fiscalData.authorization_date,
         status: "authorized",
         access_key: fiscalData.access_key,
-        organization_id: user?.organization_id
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
       
-      // Inserir no Supabase
+      // Inserir na tabela documentos (em vez de fiscal_documents)
       const { data, error } = await supabase
-        .from('fiscal_documents')
+        .from('documentos')
         .insert([documentData])
         .select()
         .single();
@@ -181,178 +224,181 @@ const NewDocumentDialog = ({ onDocumentCreated }: NewDocumentDialogProps) => {
     }
   };
 
-  // Função para alternar para a aba de pré-visualização
-  const handlePreview = () => {
-    try {
-      validateDocument();
-      // Se a validação passar, abre a pré-visualização
-      setActiveTab("preview");
-      
-      // Cria um documento temporário para pré-visualização
-      const fiscalData = generateFiscalData(documentType);
-      const previewDoc = {
-        type: documentType,
-        number: fiscalData.number,
-        customer_name: customerName,
-        total_value: parseFloat(totalValue),
-        description: description,
-        issue_date: fiscalData.issue_date,
-        authorization_date: fiscalData.authorization_date,
-        status: "draft",
-        access_key: fiscalData.access_key
-      };
-      
-      setDocument(previewDoc);
-    } catch (error: any) {
-      toast({
-        title: "Atenção",
-        description: error.message || "Preencha todos os campos corretamente antes de pré-visualizar.",
-        variant: "destructive",
-      });
+  // Reset form function
+  const resetForm = () => {
+    setDocumentType("nf");
+    setCustomerName("");
+    setTotalValue("0");
+    setDescription("");
+    setDocument(null);
+    setActiveTab("form");
+    setPreviewEnabled(false);
+  };
+
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (!newOpen) {
+      // Reset the form when dialog closes
+      resetForm();
     }
   };
 
+  // Renderizar a pré-visualização do documento
+  const renderDocumentPreview = () => {
+    if (!document) return null;
+
+    return (
+      <DocumentPreview
+        ref={documentPreviewRef}
+        type={document.type}
+        number={document.number}
+        customerName={document.customer_name}
+        value={document.total_value}
+        date={new Date(document.issue_date)}
+        description={document.description}
+        accessKey={document.access_key}
+        status={document.status}
+      />
+    );
+  };
+
+  // Alternar entre modo de abas e modo dividido
+  const toggleViewMode = () => {
+    setViewMode(viewMode === "tabs" ? "split" : "tabs");
+  };
+
+  const renderFormContent = () => (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-2">
+          <Label htmlFor="documentType">Tipo de Documento</Label>
+          <Select 
+            value={documentType}
+            onValueChange={(value) => setDocumentType(value as "nf" | "nfce" | "nfs")}
+          >
+            <SelectTrigger id="documentType">
+              <SelectValue placeholder="Selecione um tipo de documento" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="nf">Nota Fiscal Eletrônica (NF-e)</SelectItem>
+              <SelectItem value="nfce">Nota Fiscal de Consumidor (NFC-e)</SelectItem>
+              <SelectItem value="nfs">Nota Fiscal de Serviço (NFS-e)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="grid grid-cols-1 gap-2">
+          <Label htmlFor="customerName">Nome do Cliente</Label>
+          <Input 
+            id="customerName" 
+            placeholder="Nome completo do cliente" 
+            value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+          />
+        </div>
+        
+        <div className="grid grid-cols-1 gap-2">
+          <Label htmlFor="totalValue">Valor Total (R$)</Label>
+          <Input 
+            id="totalValue" 
+            placeholder="0,00" 
+            value={totalValue}
+            onChange={(e) => setTotalValue(e.target.value.replace(',', '.'))}
+            type="number"
+            step="0.01"
+            min="0"
+          />
+        </div>
+        
+        <div className="grid grid-cols-1 gap-2">
+          <Label htmlFor="description">Descrição (opcional)</Label>
+          <Textarea 
+            id="description" 
+            placeholder="Descrição ou observações do documento..." 
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+          />
+        </div>
+      </div>
+      
+      <DialogFooter className="pt-4">
+        <Button 
+          variant="outline" 
+          type="button"
+          onClick={toggleViewMode}
+        >
+          <SplitSquareHorizontal className="mr-2 h-4 w-4" />
+          {viewMode === "tabs" ? "Visualização lado a lado" : "Visualização em abas"}
+        </Button>
+        
+        <Button 
+          type="submit" 
+          disabled={isSubmitting} 
+          className="ml-auto"
+        >
+          {isSubmitting ? "Emitindo..." : "Emitir Documento"}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button className="flex items-center gap-2">
-          <FilePlus className="h-4 w-4" />
+        <Button>
+          <FilePlus className="mr-2 h-4 w-4" />
           Emitir Nota
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[800px]">
+      
+      <DialogContent className="sm:max-w-[900px]">
         <DialogHeader>
-          <DialogTitle>Emitir Documento Fiscal</DialogTitle>
+          <DialogTitle>Emitir Novo Documento Fiscal</DialogTitle>
           <DialogDescription>
-            Preencha os dados para emitir um novo documento fiscal.
+            Preencha os campos abaixo para emitir um novo documento fiscal.
           </DialogDescription>
         </DialogHeader>
         
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-2">
-          <TabsList className="grid grid-cols-2 w-[400px] mx-auto">
-            <TabsTrigger value="form" className="flex items-center gap-2">
-              <FileEdit className="h-4 w-4" />
-              Formulário
-            </TabsTrigger>
-            <TabsTrigger value="preview" className="flex items-center gap-2">
-              <Eye className="h-4 w-4" />
-              Pré-visualizar
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="form">
-            <form onSubmit={handleSubmit} className="space-y-4 py-4">
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="documentType">Tipo de Documento</Label>
-                  <Select
-                    value={documentType}
-                    onValueChange={(val) => setDocumentType(val as "nf" | "nfce" | "nfs")}
-                  >
-                    <SelectTrigger id="documentType">
-                      <SelectValue placeholder="Selecione o tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="nf">Nota Fiscal (NF-e)</SelectItem>
-                      <SelectItem value="nfce">Nota Fiscal Consumidor (NFC-e)</SelectItem>
-                      <SelectItem value="nfs">Nota Fiscal de Serviço (NFS-e)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="customer">Cliente</Label>
-                  <Input 
-                    id="customer"
-                    placeholder="Nome do cliente"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="value">Valor Total (R$)</Label>
-                  <Input 
-                    id="value"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0,00"
-                    value={totalValue}
-                    onChange={(e) => setTotalValue(e.target.value)}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="description">Descrição (opcional)</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Descreva os itens ou serviços incluídos neste documento..."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-              </div>
-              
-              <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={handlePreview}
-                  className="flex items-center gap-2 order-1 sm:order-none"
-                >
-                  <Eye className="h-4 w-4" />
-                  Pré-visualizar
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Emitindo..." : "Emitir Documento"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </TabsContent>
-          
-          <TabsContent value="preview" className="mt-4 flex flex-col items-center">
-            <p className="text-sm text-muted-foreground mb-4">
-              Pré-visualização do documento fiscal. Confira se todos os dados estão corretos antes de emitir.
-            </p>
+        {viewMode === "tabs" ? (
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid grid-cols-2">
+              <TabsTrigger value="form">
+                <FileEdit className="mr-2 h-4 w-4" />
+                Formulário
+              </TabsTrigger>
+              <TabsTrigger value="preview" disabled={!previewEnabled}>
+                <Eye className="mr-2 h-4 w-4" />
+                Pré-visualização
+              </TabsTrigger>
+            </TabsList>
             
-            {document && (
-              <DocumentPreview 
-                ref={documentPreviewRef}
-                type={document.type}
-                number={document.number}
-                customerName={document.customer_name}
-                value={document.total_value}
-                date={new Date(document.issue_date)}
-                description={document.description || description}
-                accessKey={document.access_key}
-                status={document.status}
-              />
-            )}
+            <TabsContent value="form" className="space-y-4 py-4">
+              {renderFormContent()}
+            </TabsContent>
             
-            <div className="flex justify-end w-full mt-6">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => setActiveTab("form")}
-                className="mr-2"
-              >
-                Voltar ao formulário
-              </Button>
-              {document?.status === "draft" && (
-                <Button 
-                  type="button" 
-                  onClick={handleSubmit} 
-                  disabled={isSubmitting}
-                  className="bg-primary text-white hover:bg-primary/90"
-                >
-                  {isSubmitting ? "Emitindo..." : "Emitir Documento"}
-                </Button>
+            <TabsContent value="preview" className="py-4">
+              {renderDocumentPreview()}
+            </TabsContent>
+          </Tabs>
+        ) : (
+          // Modo dividido (side-by-side)
+          <div className="grid grid-cols-2 gap-4">
+            <div className="border rounded-md p-4">
+              <h3 className="text-sm font-medium mb-2">Formulário</h3>
+              {renderFormContent()}
+            </div>
+            
+            <div className="border rounded-md p-4">
+              <h3 className="text-sm font-medium mb-2">Pré-visualização</h3>
+              {previewEnabled ? renderDocumentPreview() : (
+                <div className="flex items-center justify-center h-64 text-gray-400">
+                  Preencha o formulário para visualizar
+                </div>
               )}
             </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

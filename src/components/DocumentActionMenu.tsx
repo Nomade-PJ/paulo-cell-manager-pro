@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { 
   MoreHorizontal, 
@@ -75,25 +74,22 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
       
       const newAccessKey = `${uf}${aamm}${cnpj}${modelo}${seriesNumber}${numero}${chaveExtra}${dv}`;
 
-      // Inserir novo documento como reemissão
-      const { data, error } = await supabase
-        .from('fiscal_documents')
-        .insert([
-          {
-            type: document.type,
-            customer_id: document.customer_id,
-            customer_name: document.customer_name,
-            total_value: document.total_value,
-            status: 'authorized', // Já emitimos como autorizado
-            original_document_id: document.id,
-            number: newNumber,
-            access_key: newAccessKey,
-            authorization_date: now.toISOString(),
-            issue_date: now.toISOString(),
-            organization_id: user?.organization_id
-          }
-        ])
-        .select();
+      // Preparar objeto para inserção
+      const newDocObject = {
+        id: crypto.randomUUID(),
+        type: document.type,
+        customer_id: document.customer_id || 'cliente-padrao',
+        customer_name: document.customer_name,
+        total_value: document.total_value,
+        description: `Reemissão do documento ${document.number}`,
+        status: 'authorized', 
+        number: newNumber,
+        issue_date: now.toISOString(),
+        access_key: newAccessKey,
+        authorization_date: now.toISOString(),
+        created_at: now.toISOString(),
+        updated_at: now.toISOString()
+      };
 
       // Inserir na tabela documentos
       const { error } = await supabase
@@ -174,38 +170,51 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
         description: `Iniciando processo de cancelamento para ${document.number}...`,
       });
 
-      // Atualizar status para cancelado
-      const { error } = await supabase
-        .from('fiscal_documents')
+      // Atualizar apenas o status e updated_at (removendo cancelation_date)
+      const { error: docError } = await supabase
+        .from('documentos')
         .update({
           status: 'canceled',
-          cancelation_date: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
         .eq('id', document.id);
 
-      if (error) throw error;
+      if (docError) {
+        console.error("Erro ao cancelar documento:", docError);
+        throw new Error(`Erro ao atualizar status do documento: ${docError.message}`);
+      }
 
       // Registrar log do cancelamento
-      await supabase
-        .from('fiscal_document_logs')
-        .insert([{
-          document_number: document.number,
-          action: 'canceled',
-          user_id: user?.id,
-          details: {
-            cancelation_date: new Date().toISOString(),
-            reason: 'Cancelamento solicitado pelo emissor'
-          }
-        }]);
+      try {
+        await supabase
+          .from('fiscal_document_logs')
+          .insert([{
+            document_number: document.number,
+            action: 'canceled',
+            user_id: user?.id,
+            details: {
+              cancelation_date: new Date().toISOString(),
+              reason: 'Cancelamento solicitado pelo emissor'
+            }
+          }]);
+      } catch (logError) {
+        console.warn("Erro ao registrar log de cancelamento:", logError);
+        // Continuar mesmo com erro no log
+      }
 
-      // Criar notificação sobre o cancelamento do documento
+      // Tentar criar notificação sobre o cancelamento do documento - com try/catch
       if (user) {
-        await sendDocumentNotification(
-          user.id,
-          document.number,
-          "Documento cancelado com sucesso",
-          document.id
-        );
+        try {
+          await sendDocumentNotification(
+            user.id,
+            document.number,
+            "Documento cancelado com sucesso",
+            document.id
+          );
+        } catch (notifError) {
+          console.warn("Erro ao enviar notificação de cancelamento:", notifError);
+          // Não interromper o fluxo em caso de erro na notificação
+        }
       }
 
       toast({
@@ -221,6 +230,45 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
         variant: "destructive",
       });
       console.error("Error canceling document:", error);
+    }
+  };
+
+  // Função para copiar texto para a área de transferência
+  const copyToClipboard = async () => {
+    try {
+      const textContent = `
+Documento: ${document.type.toUpperCase()} ${document.number}
+Emissão: ${new Date(document.issue_date).toLocaleDateString('pt-BR')}
+Cliente: ${document.customer_name || 'N/A'}
+CNPJ: ${document.customer_id || 'N/A'}
+Status: ${document.status === 'authorized' ? 'Autorizada' : document.status === 'pending' ? 'Pendente' : 'Cancelada'}
+Valor: ${formatCurrency(document.total_value)}
+      `.trim();
+
+      await navigator.clipboard.writeText(textContent);
+      
+      // Registrar ação de cópia para área de transferência
+      await supabase
+        .from('fiscal_document_logs')
+        .insert([{
+          document_number: document.number,
+          action: 'copy_clipboard',
+          user_id: user?.id,
+        }]);
+      
+      toast({
+        title: 'Sucesso',
+        description: 'Dados copiados para a área de transferência',
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Erro ao copiar para área de transferência:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível copiar os dados',
+        variant: 'destructive',
+        duration: 5000,
+      });
     }
   };
 
@@ -247,108 +295,23 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
         URL.revokeObjectURL(url);
       }, 0);
       
-      toast({
-        title: "Download iniciado",
-        description: `O documento ${document.number} foi preparado para download.`,
-      });
-
-      // Gerar um PDF fictício simples no cliente
-      const docType = document.type.toUpperCase();
-      const docTitle = document.type === 'nf' ? 'NOTA FISCAL ELETRÔNICA' : 
-                      document.type === 'nfce' ? 'NOTA FISCAL DE CONSUMIDOR ELETRÔNICA' : 
-                      'NOTA FISCAL DE SERVIÇO ELETRÔNICA';
-      
-      // Estrutura básica do PDF em HTML
-      const pdfContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>${document.number}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            h1 { text-align: center; font-size: 18px; margin-bottom: 20px; }
-            .header { border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; }
-            .info-label { font-weight: bold; margin-right: 10px; }
-            .info-row { margin-bottom: 8px; }
-            .section { margin-bottom: 20px; }
-            .document-title { text-align: center; font-size: 22px; font-weight: bold; margin: 30px 0; }
-            .footer { margin-top: 40px; font-size: 12px; text-align: center; }
-            .logo { font-size: 24px; font-weight: bold; text-align: center; margin-bottom: 10px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="logo">PAULO CELL</div>
-            <p style="text-align: center;">CNPJ: 42.054.453/0001-40</p>
-          </div>
-          
-          <div class="document-title">${docTitle}</div>
-          
-          <div class="section">
-            <div class="info-row">
-              <span class="info-label">Número:</span> ${document.number}
-            </div>
-            <div class="info-row">
-              <span class="info-label">Data de Emissão:</span> ${new Date(document.issue_date).toLocaleDateString('pt-BR')}
-            </div>
-            <div class="info-row">
-              <span class="info-label">Status:</span> ${document.status === 'authorized' ? 'AUTORIZADA' : document.status.toUpperCase()}
-            </div>
-            <div class="info-row">
-              <span class="info-label">Chave de Acesso:</span> ${document.access_key || '-'}
-            </div>
-          </div>
-          
-          <div class="section">
-            <div class="info-row">
-              <span class="info-label">Cliente:</span> ${document.customer_name}
-            </div>
-            <div class="info-row">
-              <span class="info-label">Valor Total:</span> R$ ${Number(document.total_value).toFixed(2).replace('.', ',')}
-            </div>
-          </div>
-          
-          <div class="footer">
-            <p>Documento fiscal emitido por Sistema Paulo Cell</p>
-            <p>Rua: Dr. Paulo Ramos, Bairro: Centro S/n - Coelho Neto - MA</p>
-          </div>
-        </body>
-        </html>
-      `;
-      
-      // Converter o HTML para Blob
-      const blob = new Blob([pdfContent], { type: 'text/html' });
-      const url = window.URL.createObjectURL(blob);
-      
-      // Criar elemento de download
-      const downloadLink = window.document.createElement('a');
-      downloadLink.style.display = 'none';
-      downloadLink.href = url;
-      downloadLink.setAttribute('download', `${document.number.replace(/\//g, '-')}.html`);
-      
-      // Adicionar ao DOM
-      window.document.body.appendChild(downloadLink);
-      downloadLink.click();
-      
-      // Remover o elemento e revogar a URL
-      setTimeout(() => {
-        window.document.body.removeChild(downloadLink);
-        window.URL.revokeObjectURL(url);
-      }, 100);
-
       // Registrar log do download
       if (user) {
-        await supabase
-          .from('fiscal_document_logs')
-          .insert([{
-            document_number: document.number,
-            action: 'downloaded',
-            user_id: user.id,
-            details: {
-              format: 'pdf',
-              timestamp: new Date().toISOString()
-            }
-          }]);
+        try {
+          await supabase
+            .from('fiscal_document_logs')
+            .insert([{
+              document_number: document.number,
+              action: 'downloaded',
+              user_id: user.id,
+              details: {
+                format: 'pdf',
+                timestamp: new Date().toISOString()
+              }
+            }]);
+        } catch (logError) {
+          console.warn("Erro ao registrar log de download:", logError);
+        }
       }
       
       toast({
@@ -356,6 +319,7 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
         description: `O documento ${document.number} foi baixado.`,
       });
     } catch (error: any) {
+      console.error("Erro ao gerar download:", error);
       toast({
         title: "Erro no download",
         description: "Não foi possível gerar o arquivo para download.",
@@ -528,17 +492,26 @@ const DocumentActionMenu = ({ document, onDocumentUpdated }: DocumentActionMenuP
   // Handler para envio por email
   const handleSendEmail = async () => {
     try {
-      const issueDate = new Date(document.issue_date);
-      const formattedValue = new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL'
-      }).format(document.total_value);
-      
-      // Preparar o assunto e corpo do e-mail
-      const subject = `${document.type.toUpperCase()} ${document.number} - Paulo Cell`;
-      const body = `
-Olá ${document.customer_name},
+      // Verificar se o documento tem todas as informações necessárias
+      if (!document || !document.number || !document.type || !document.issue_date) {
+        throw new Error("Documento sem informações completas");
+      }
 
+      // Verificar o cliente, assumir um valor de "Cliente" se estiver em branco
+      const customerName = document.customer_name || "Cliente";
+      
+      // Verificar a data de emissão e formatá-la
+      let formattedDate;
+      try {
+        formattedDate = new Date(document.issue_date).toLocaleDateString('pt-BR');
+      } catch (err) {
+        console.warn("Erro ao formatar data:", err);
+        formattedDate = "Data não disponível";
+      }
+      
+      // Garantir que o valor total existe, ou usar 0 como fallback
+      const docValue = document.total_value || 0;
+      
       // Construir o corpo do e-mail com os detalhes do documento
       const docTitle = document.type === 'nf' ? 'NOTA FISCAL ELETRÔNICA' : 
                       document.type === 'nfce' ? 'NOTA FISCAL DE CONSUMIDOR ELETRÔNICA' : 
@@ -546,58 +519,68 @@ Olá ${document.customer_name},
                       
       const subject = `${docTitle} - ${document.number}`;
       const body = `
-        Olá,
+Olá ${customerName},
         
-        Segue a nota fiscal ${document.number} emitida em ${new Date(document.issue_date).toLocaleDateString('pt-BR')}.
+Segue a nota fiscal ${document.number} emitida em ${formattedDate}.
         
-        Detalhes do documento:
-        - Documento: ${document.number}
-        - Tipo: ${docTitle}
-        - Valor Total: R$ ${document.total_value.toFixed(2).replace('.', ',')}
+Detalhes do documento:
+- Documento: ${document.number}
+- Tipo: ${docTitle}
+- Valor Total: ${formatCurrency(docValue)}
         
-        Atenciosamente,
-        Paulo Cell
-        CNPJ: 42.054.453/0001-40
-        Rua: Dr. Paulo Ramos, Bairro: Centro S/n
-        Coelho Neto - MA
-      `;
+Atenciosamente,
+Paulo Cell
+CNPJ: 42.054.453/0001-40
+Rua: Dr. Paulo Ramos, Bairro: Centro S/n
+Coelho Neto - MA
+`;
       
-      // Abrir o cliente de e-mail padrão do usuário
-      window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-      
-      // Gravar o log de envio no banco
-      if (user) {
-        await supabase
-          .from('fiscal_document_logs')
-          .insert([{
-            document_number: document.number,
-            action: 'email_sent',
-            user_id: user.id,
-            details: {
-              sent_at: new Date().toISOString(),
-              document_type: document.type
-            }
-          }]);
+      // Abrir o cliente de e-mail padrão do usuário - usando try/catch para garantir que mesmo se houver erro no log, o email será enviado
+      try {
+        window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        
+        // Mostrar a mensagem de sucesso primeiro
+        toast({
+          title: "Email preparado",
+          description: "O seu cliente de email foi aberto para envio do documento.",
+        });
+        
+        // Depois tentar registrar o log (não interrompe o fluxo se falhar)
+        if (user) {
+          try {
+            await supabase
+              .from('fiscal_document_logs')
+              .insert([{
+                document_number: document.number,
+                action: 'email_sent',
+                user_id: user.id,
+                details: {
+                  sent_at: new Date().toISOString(),
+                  document_type: document.type
+                }
+              }]);
+              
+            // Criar notificação sobre o envio do documento
+            await sendDocumentNotification(
+              user.id,
+              document.number,
+              "Documento enviado por email",
+              document.id
+            );
+          } catch (logError) {
+            // Apenas registrar o erro no console, não afetar o usuário
+            console.warn("Erro ao registrar log de email:", logError);
+          }
+        }
+      } catch (mailError) {
+        console.error("Erro ao abrir cliente de email:", mailError);
+        throw new Error("Não foi possível abrir seu cliente de email");
       }
-      
-      // Criar notificação sobre o envio do documento
-      if (user) {
-        await sendDocumentNotification(
-          user.id,
-          document.number,
-          "Documento enviado por email",
-          document.id
-        );
-      }
-      
-      toast({
-        title: "Email preparado",
-        description: "O seu cliente de email foi aberto para envio do documento.",
-      });
     } catch (error: any) {
+      console.error("Erro completo ao enviar e-mail:", error);
       toast({
         title: "Erro ao enviar e-mail",
-        description: "Não foi possível preparar o e-mail. Verifique se o documento possui todas as informações necessárias.",
+        description: error.message || "Não foi possível preparar o e-mail. Verifique se o documento possui todas as informações necessárias.",
         variant: "destructive",
       });
     }
@@ -819,6 +802,101 @@ Olá ${document.customer_name},
     `;
   };
 
+  // Função para criar e compartilhar arquivo para impressão térmica
+  const createAndShareThermalFile = async () => {
+    try {
+      // Criando conteúdo formatado para impressora térmica (largura reduzida)
+      const docType = document.type.toUpperCase();
+      const docTitle = document.type === 'nf' ? 'NF-e' : 
+                     document.type === 'nfce' ? 'NFC-e' : 'NFS-e';
+      
+      // Conteúdo otimizado para impressora térmica (largura típica de 80mm/58mm)
+      const thermalContent = `
+PAULO CELL
+CNPJ: 42.054.453/0001-40
+Rua: Dr. Paulo Ramos, Centro S/n
+Coelho Neto - MA
+
+--------------------------------
+${docTitle} - ${document.number}
+--------------------------------
+Cliente: ${document.customer_name || 'Consumidor Final'}
+Emissão: ${new Date(document.issue_date).toLocaleDateString('pt-BR')}
+          ${new Date(document.issue_date).toLocaleTimeString('pt-BR')}
+Status: ${document.status === 'authorized' ? 'AUTORIZADA' : document.status.toUpperCase()}
+
+VALORES:
+Subtotal: ${formatCurrency(document.total_value)}
+TOTAL:    ${formatCurrency(document.total_value)}
+--------------------------------
+
+CHAVE DE ACESSO:
+${document.access_key || ''}
+
+Consulte pela chave de acesso em:
+www.nfe.fazenda.gov.br
+
+--------------------------------
+DOCUMENTO FISCAL
+Obrigado pela preferência!
+`;
+
+      // Criar arquivo de texto para impressão
+      const file = new Blob([thermalContent], { type: 'text/plain' });
+      const fileUrl = URL.createObjectURL(file);
+      
+      // Verificar se o navegador suporta Web Share API
+      if (navigator.share) {
+        try {
+          // Tentar compartilhar o arquivo (principalmente para dispositivos móveis)
+          await navigator.share({
+            title: `${docTitle} ${document.number}`,
+            text: 'Arquivo para impressão térmica',
+            files: [new File([file], `thermal_${document.number.replace(/\//g, '_')}.txt`, { type: 'text/plain' })]
+          });
+          // Registrar ação de compartilhamento
+          await supabase
+            .from('fiscal_document_logs')
+            .insert([{
+              document_number: document.number,
+              action: 'share_thermal',
+              user_id: user?.id,
+            }]);
+          return;
+        } catch (shareError) {
+          console.log('Compartilhamento não suportado ou cancelado pelo usuário', shareError);
+          // Fallback para download quando o compartilhamento falha
+        }
+      }
+
+      // Fallback: fazer download do arquivo se não for possível compartilhar
+      const link = window.document.createElement('a');
+      link.href = fileUrl;
+      link.setAttribute('download', `thermal_${document.number.replace(/\//g, '_')}.txt`);
+      window.document.body.appendChild(link);
+      link.click();
+      window.document.body.removeChild(link);
+      URL.revokeObjectURL(fileUrl);
+
+      // Registrar ação de download
+      await supabase
+        .from('fiscal_document_logs')
+        .insert([{
+          document_number: document.number,
+          action: 'download_thermal',
+          user_id: user?.id,
+        }]);
+    } catch (error) {
+      console.error('Erro ao criar arquivo para impressão térmica:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível criar o arquivo para impressão térmica.',
+        variant: 'destructive',
+        duration: 5000,
+      });
+    }
+  };
+
   return (
     <>
       <DropdownMenu>
@@ -847,6 +925,11 @@ Olá ${document.customer_name},
           <DropdownMenuItem onClick={handleSendEmail} className="cursor-pointer">
             <Send className="mr-2 h-4 w-4" />
             <span>Enviar por email</span>
+          </DropdownMenuItem>
+          
+          <DropdownMenuItem onClick={createAndShareThermalFile} className="cursor-pointer">
+            <Printer className="mr-2 h-4 w-4" />
+            <span>Imprimir térmica</span>
           </DropdownMenuItem>
           
           <DropdownMenuSeparator />
