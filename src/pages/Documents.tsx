@@ -12,7 +12,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { format, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { FiscalDocument } from "@/types";
 import DocumentActionMenu from "@/components/DocumentActionMenu";
@@ -20,6 +20,13 @@ import { ThermalPrinter } from "@/components/ThermalPrinter";
 import NewDocumentDialog from "@/components/NewDocumentDialog";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabaseClient";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
+import { useNavigate } from "react-router-dom";
 
 const mockDocuments: FiscalDocument[] = [
   {
@@ -93,6 +100,7 @@ const Documents = () => {
   const [monthlyStats, setMonthlyStats] = useState<{month: string; count: number}[]>([]);
   const [sefazStatus, setSefazStatus] = useState<"online" | "offline">("online");
   const [refreshCounter, setRefreshCounter] = useState(0);
+  const navigate = useNavigate();
 
   // Forçar atualização
   const forceRefresh = () => {
@@ -262,20 +270,32 @@ const Documents = () => {
     }
   };
 
-  const filteredDocuments = documents.filter((doc) => {
-    if (currentTab !== "all" && doc.type !== currentTab) return false;
+  // Filter documents based on search, status, and date
+  const filteredDocuments = documents.filter(doc => {
+    // Filter by search term
+    const matchesSearch = 
+      searchTerm === "" || 
+      doc.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      doc.customer_name.toLowerCase().includes(searchTerm.toLowerCase());
     
-    if (searchTerm && 
-        !doc.number.toLowerCase().includes(searchTerm.toLowerCase()) && 
-        !doc.customer_name.toLowerCase().includes(searchTerm.toLowerCase())) 
-      return false;
+    // Filter by status
+    const matchesStatus = 
+      statusFilter === "all" || 
+      doc.status === statusFilter;
     
-    if (statusFilter && statusFilter !== "all" && doc.status !== statusFilter) return false;
+    // Filter by date
+    let matchesDate = true;
+    if (dateFilter) {
+      const docDate = new Date(doc.issue_date);
+      const filterDate = new Date(dateFilter);
+      
+      matchesDate = 
+        docDate.getDate() === filterDate.getDate() &&
+        docDate.getMonth() === filterDate.getMonth() &&
+        docDate.getFullYear() === filterDate.getFullYear();
+    }
     
-    if (dateFilter && format(new Date(doc.issue_date), "yyyy-MM-dd") !== format(dateFilter, "yyyy-MM-dd")) 
-      return false;
-    
-    return true;
+    return matchesSearch && matchesStatus && matchesDate;
   });
 
   const formatCurrency = (value: number) => {
@@ -363,11 +383,149 @@ const Documents = () => {
     }, 1500);
   };
 
+  // Replace with enhanced Excel export functionality
+  const handleExportDocumentsToExcel = (period: string) => {
+    const now = new Date();
+    let filteredDocs: FiscalDocument[] = [];
+    let periodLabel = '';
+    
+    switch (period) {
+      case "1month":
+        filteredDocs = documents.filter(doc => 
+          new Date(doc.issue_date) >= subMonths(now, 1)
+        );
+        periodLabel = "do último mês";
+        break;
+      case "6months":
+        filteredDocs = documents.filter(doc => 
+          new Date(doc.issue_date) >= subMonths(now, 6)
+        );
+        periodLabel = "dos últimos 6 meses";
+        break;
+      case "12months":
+        filteredDocs = documents.filter(doc => 
+          new Date(doc.issue_date) >= subMonths(now, 12)
+        );
+        periodLabel = "dos últimos 12 meses";
+        break;
+      case "all":
+        filteredDocs = [...documents];
+        periodLabel = "de todo o período";
+        break;
+    }
+    
+    exportDocumentsToExcel(filteredDocs, periodLabel);
+  };
+
+  // Function to generate and download Excel file
+  const exportDocumentsToExcel = async (docs: FiscalDocument[], periodLabel: string) => {
+    try {
+      toast({
+        title: "Exportação iniciada",
+        description: `Preparando documentos ${periodLabel} para Excel...`,
+      });
+
+      if (docs.length === 0) {
+        toast({
+          title: "Aviso",
+          description: `Não há documentos para o período selecionado.`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Generate CSV content
+      const csvHeader = "Número,Tipo,Data de Emissão,Cliente,CNPJ/CPF,Status,Valor\n";
+      const csvContent = docs.map(doc => {
+        const issueDate = new Date(doc.issue_date).toLocaleDateString('pt-BR');
+        const docType = doc.type === 'nf' ? 'NF-e' : doc.type === 'nfce' ? 'NFC-e' : 'NFS-e';
+        const status = doc.status === 'authorized' ? 'Autorizada' : doc.status === 'pending' ? 'Pendente' : 'Cancelada';
+        const value = doc.total_value.toString().replace('.', ',');
+        
+        return `"${doc.number}","${docType}","${issueDate}","${doc.customer_name}","${doc.customer_id || 'N/A'}","${status}","R$ ${value}"`;
+      }).join('\n');
+      
+      // Combine header and content
+      const fullContent = csvHeader + csvContent;
+      
+      // Create downloadable file
+      const blob = new Blob([fullContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      
+      // Create download link
+      const a = document.createElement('a');
+      const fileName = `documentos_fiscais_${periodLabel.replace(/ /g, '_').toLowerCase()}.csv`;
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 0);
+      
+      // Log export action
+      try {
+        await supabase
+          .from('fiscal_document_logs')
+          .insert([{
+            document_number: 'batch_export_excel',
+            action: 'excel_exported',
+            user_id: 'system',
+            details: {
+              count: docs.length,
+              period: periodLabel,
+              timestamp: new Date().toISOString()
+            }
+          }]);
+      } catch (logError) {
+        console.error("Erro ao registrar log de exportação Excel:", logError);
+      }
+      
+      toast({
+        title: "Exportação concluída",
+        description: `${docs.length} documentos ${periodLabel} exportados para Excel com sucesso.`,
+      });
+    } catch (error) {
+      console.error("Erro ao exportar documentos para Excel:", error);
+      toast({
+        title: "Erro na exportação",
+        description: "Não foi possível exportar os documentos para Excel.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleGenerateReports = () => {
+    // Preparar parâmetros com base nos filtros atuais
+    const params = new URLSearchParams();
+    
+    // Adicionar filtros atuais como parâmetros
+    if (currentTab !== 'all') {
+      params.append('docType', currentTab);
+    }
+    
+    if (statusFilter !== 'all') {
+      params.append('status', statusFilter);
+    }
+    
+    if (dateFilter) {
+      params.append('date', format(dateFilter, 'yyyy-MM-dd'));
+    }
+    
+    // Adicionar um parâmetro para indicar que são relatórios de documentos fiscais
+    params.append('source', 'fiscal_documents');
+    
+    // Notificar o usuário
     toast({
       title: "Redirecionando",
       description: "Indo para a página de relatórios fiscais.",
     });
+    
+    // Redirecionar para a página de relatórios com os parâmetros
+    navigate(`/reports?${params.toString()}`);
   };
 
   const checkCertificate = () => {
@@ -406,6 +564,276 @@ const Documents = () => {
         });
       }
     }, 1500);
+  };
+
+  const handleExportDocumentsByPeriod = (period: string) => {
+    const now = new Date();
+    let filteredDocs: FiscalDocument[] = [];
+    let periodLabel = '';
+    
+    switch (period) {
+      case "1month":
+        filteredDocs = documents.filter(doc => 
+          new Date(doc.issue_date) >= subMonths(now, 1)
+        );
+        periodLabel = "do último mês";
+        break;
+      case "6months":
+        filteredDocs = documents.filter(doc => 
+          new Date(doc.issue_date) >= subMonths(now, 6)
+        );
+        periodLabel = "dos últimos 6 meses";
+        break;
+      case "12months":
+        filteredDocs = documents.filter(doc => 
+          new Date(doc.issue_date) >= subMonths(now, 12)
+        );
+        periodLabel = "dos últimos 12 meses";
+        break;
+      case "all":
+        filteredDocs = [...documents];
+        periodLabel = "de todo o período";
+        break;
+    }
+    
+    exportDocumentsPDF(filteredDocs, periodLabel);
+  };
+
+  // Function to generate HTML for multiple documents
+  const generateBatchDocumentsHTML = (docs: FiscalDocument[]) => {
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Documentos Fiscais</title>
+          <meta charset="UTF-8">
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 20px;
+            }
+            .document-container {
+              page-break-after: always;
+              border: 1px solid #ccc;
+              margin-bottom: 20px;
+              padding: 15px;
+              max-width: 210mm;
+              margin: 0 auto 20px;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 20px;
+            }
+            .company-name {
+              font-size: 18px;
+              font-weight: bold;
+            }
+            .document-type {
+              font-size: 16px;
+              font-weight: bold;
+              margin: 10px 0;
+              text-align: center;
+            }
+            .section {
+              margin-bottom: 15px;
+            }
+            .section-title {
+              font-weight: bold;
+              border-bottom: 1px solid #eee;
+              padding-bottom: 5px;
+              margin-bottom: 10px;
+            }
+            .info-row {
+              display: flex;
+              margin-bottom: 5px;
+            }
+            .info-label {
+              font-weight: bold;
+              width: 150px;
+            }
+            .info-value {
+              flex: 1;
+            }
+            .footer {
+              text-align: center;
+              font-size: 12px;
+              margin-top: 20px;
+              color: #666;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 15px;
+            }
+            th, td {
+              border: 1px solid #ddd;
+              padding: 8px;
+              text-align: left;
+            }
+            th {
+              background-color: #f2f2f2;
+            }
+            .total-row {
+              font-weight: bold;
+            }
+            .right {
+              text-align: right;
+            }
+            .center {
+              text-align: center;
+            }
+            @media print {
+              .document-container {
+                border: none;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          ${docs.map(doc => {
+            const issueDate = new Date(doc.issue_date);
+            const docType = doc.type === 'nf' 
+              ? 'NOTA FISCAL ELETRÔNICA' 
+              : doc.type === 'nfce' 
+                ? 'NOTA FISCAL DE CONSUMIDOR ELETRÔNICA' 
+                : 'NOTA FISCAL DE SERVIÇO';
+            
+            return `
+              <div class="document-container">
+                <div class="header">
+                  <div class="company-name">PAULO CELL</div>
+                  <div>CNPJ: 42.054.453/0001-40</div>
+                  <div>Rua Dr. Paulo Ramos, Bairro: Centro S/n</div>
+                  <div>Coelho Neto - MA</div>
+                </div>
+                
+                <div class="document-type">${docType}</div>
+                
+                <div class="section">
+                  <div class="info-row">
+                    <div class="info-label">Número:</div>
+                    <div class="info-value">${doc.number}</div>
+                  </div>
+                  <div class="info-row">
+                    <div class="info-label">Data de Emissão:</div>
+                    <div class="info-value">${issueDate.toLocaleString('pt-BR')}</div>
+                  </div>
+                  <div class="info-row">
+                    <div class="info-label">Cliente:</div>
+                    <div class="info-value">${doc.customer_name}</div>
+                  </div>
+                  <div class="info-row">
+                    <div class="info-label">Status:</div>
+                    <div class="info-value">${doc.status === 'authorized' ? 'AUTORIZADA' : doc.status === 'pending' ? 'PENDENTE' : 'CANCELADA'}</div>
+                  </div>
+                </div>
+                
+                <div class="section">
+                  <div class="section-title">VALORES</div>
+                  <table>
+                    <tr>
+                      <td>Subtotal:</td>
+                      <td class="right">${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(doc.total_value)}</td>
+                    </tr>
+                    <tr class="total-row">
+                      <td>TOTAL:</td>
+                      <td class="right">${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(doc.total_value)}</td>
+                    </tr>
+                  </table>
+                </div>
+                
+                ${doc.access_key ? `
+                <div class="section">
+                  <div class="section-title">INFORMAÇÕES ADICIONAIS</div>
+                  <div class="info-row">
+                    <div class="info-label">Chave de Acesso:</div>
+                    <div class="info-value" style="word-break: break-all;">${doc.access_key}</div>
+                  </div>
+                </div>
+                ` : ''}
+                
+                <div class="footer">
+                  <p>DOCUMENTO FISCAL</p>
+                  <p>Consulte pela chave de acesso em: www.nfe.fazenda.gov.br</p>
+                  <p>Gerado em ${new Date().toLocaleString('pt-BR')}</p>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </body>
+      </html>
+    `;
+  };
+
+  // Add function to export documents as PDF for a specified period
+  const exportDocumentsPDF = async (docs: FiscalDocument[], periodLabel: string) => {
+    try {
+      toast({
+        title: "Exportação iniciada",
+        description: `Preparando documentos ${periodLabel} para download em PDF...`,
+      });
+
+      if (docs.length === 0) {
+        toast({
+          title: "Aviso",
+          description: `Não há documentos para o período selecionado.`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Create HTML content for all documents
+      const combinedHTML = generateBatchDocumentsHTML(docs);
+      
+      // Convert to PDF (simulated with HTML)
+      const blob = new Blob([combinedHTML], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      
+      // Create download link
+      const a = document.createElement('a');
+      const fileName = `documentos_fiscais_${periodLabel.replace(/ /g, '_').toLowerCase()}.html`;
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 0);
+      
+      // Log export action
+      try {
+        await supabase
+          .from('fiscal_document_logs')
+          .insert([{
+            document_number: 'batch_export',
+            action: 'batch_exported',
+            user_id: 'system',
+            details: {
+              count: docs.length,
+              period: periodLabel,
+              timestamp: new Date().toISOString()
+            }
+          }]);
+      } catch (logError) {
+        console.error("Erro ao registrar log de exportação em lote:", logError);
+      }
+      
+      toast({
+        title: "Exportação concluída",
+        description: `${docs.length} documentos ${periodLabel} exportados com sucesso.`,
+      });
+    } catch (error) {
+      console.error("Erro ao exportar documentos:", error);
+      toast({
+        title: "Erro na exportação",
+        description: "Não foi possível exportar os documentos.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -580,13 +1008,55 @@ const Documents = () => {
               )}
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="text-xs" onClick={handleExportDocuments}>
-                <Download className="h-3.5 w-3.5 mr-1" />
-                Exportar
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="text-xs">
+                    <Download className="h-3.5 w-3.5 mr-1" />
+                    Exportar PDF
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleExportDocumentsByPeriod("1month")}>
+                    Último mês
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportDocumentsByPeriod("6months")}>
+                    Últimos 6 meses
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportDocumentsByPeriod("12months")}>
+                    Últimos 12 meses
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportDocumentsByPeriod("all")}>
+                    Todo o período
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="text-xs">
+                    <Download className="h-3.5 w-3.5 mr-1" />
+                    Exportar Excel
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleExportDocumentsToExcel("1month")}>
+                    Último mês
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportDocumentsToExcel("6months")}>
+                    Últimos 6 meses
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportDocumentsToExcel("12months")}>
+                    Últimos 12 meses
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportDocumentsToExcel("all")}>
+                    Todo o período
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              
               <Button variant="outline" size="sm" className="text-xs" onClick={handleGenerateReports}>
-                <FileText className="h-3.5 w-3.5 mr-1" />
-                Relatórios
+                <ArrowRight className="h-3.5 w-3.5 mr-1" />
+                Gerar Relatórios
               </Button>
             </div>
           </CardFooter>
